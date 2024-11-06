@@ -29,6 +29,7 @@ async def http_exception_handler(request, exc):
 
 class RequestItem(BaseModel):
     pkg: str
+    version: str
     phone: str
     type: str
     info: str
@@ -57,3 +58,5 @@ def save_loginfo(request_item: RequestItem):
     print(request_item)
     save_log_info(request_item)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+#uvicorn htz-api-server:app --host=0.0.0.0 --port=8082
