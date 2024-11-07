@@ -7,21 +7,28 @@ from datetime import datetime
 DB_NAME = 'htz.db'
 
 def save_log_info(request_item: RequestItem):
-    # 创建数据库连接
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-
-    # 插入数据到数据库
     cursor.execute("""
         INSERT INTO log_info (pkg, phone, type, info, time, user)
         VALUES (?, ?, ?, ?, ?, ?)
     """, (request_item.pkg,  request_item.phone,  request_item.type,  request_item.info,  request_item.time,  request_item.user))
-
-    # 提交事务
     conn.commit()
-    # 关闭游标和连接
     cursor.close()
     conn.close()
+
+def get_log_info(pkg: str):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    sql=f"SELECT * FROM log_info WHERE pkg='{pkg}'"
+    print(sql)
+    cursor.execute(sql)
+    result = cursor.fetchall()
+    columns = [description[0] for description in cursor.description]
+    data = [dict(zip(columns, row)) for row in result]
+    cursor.close()
+    conn.close()
+    return json.dumps(data, indent=4)
 
 def get_ak_sk(request_item: AkskRequestItem):
     conn = sqlite3.connect(DB_NAME)
