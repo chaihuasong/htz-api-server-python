@@ -33,10 +33,10 @@ def get_log_info(pkg: str):
     conn.close()
     return json.dumps(data, indent=4)
 
-def get_ak_sk(request_item: AkskRequestItem):
+def get_ak_sk(appName: str):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    sql=f"SELECT * FROM aksk WHERE appName='{request_item.appName}'"
+    sql=f"SELECT * FROM aksk WHERE appName='{appName}'"
     print(sql)
     cursor.execute(sql)
     result = cursor.fetchone()

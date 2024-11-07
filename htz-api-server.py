@@ -45,9 +45,9 @@ def get_loginfo(pkg: str):
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 @app.get("/htz-api-pyservice/api/v1/getaksk")
-def save_loginfo(request_item: AkskRequestItem):
-    print(request_item)
-    result = get_ak_sk(request_item)
+def getaksk(appName: str):
+    print(appName)
+    result = get_ak_sk(appName)
     print(result)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
