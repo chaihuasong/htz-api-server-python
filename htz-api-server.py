@@ -2,8 +2,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.exceptions  import RequestValidationError
 from fastapi.responses  import JSONResponse
 import logging
-from pydantic import BaseModel
-import sqlite3
+
+from request import RequestItem
+from request import AkskRequestItem
+from db import *
 
 # 初始化日志记录器
 logger = logging.getLogger(__name__)
@@ -27,36 +29,44 @@ async def http_exception_handler(request, exc):
     logger.error(exc)
     return JSONResponse({"code": "404", "msg": "bad request path", "data": None})
 
-class RequestItem(BaseModel):
-    pkg: str
-    version: str
-    phone: str
-    type: str
-    info: str
-    time: str
-    user: str
-
-def save_log_info(request_item: RequestItem):
-    # 创建数据库连接
-    conn = sqlite3.connect('htz.db')
-    cursor = conn.cursor()
-
-    # 插入数据到数据库
-    cursor.execute("""
-        INSERT INTO log_info (pkg, phone, type, info, time, user)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (request_item.pkg,  request_item.phone,  request_item.type,  request_item.info,  request_item.time,  request_item.user))
-
-    # 提交事务
-    conn.commit()
-
-    # 关闭游标和连接
-    cursor.close()
-
 @app.post("/htz-api-pyservice/api/v1/savelog")
 def save_loginfo(request_item: RequestItem):
     print(request_item)
-    save_log_info(request_item)
+    try:
+        save_log_info(request_item)
+    except Exception as e:
+        print(f"保存出错: {e}")
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.get("/htz-api-pyservice/api/v1/getaksk")
+def save_loginfo(request_item: AkskRequestItem):
+    print(request_item)
+    result = get_ak_sk(request_item)
+    print(result)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.post("/htz-api-pyservice/api/v1/userinfo/add")
+def save_userinfo(request_item: UserInfoItem):
+    print(f"save_userinfo unionid:{request_item}")
+    insert_user(request_item)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/userinfo/update")
+def update_userinfo(request_item: UserInfoItem):
+    print(f"update_userinfo unionid:{request_item}")
+    update_user_by_unionid(request_item)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/userinfo/get")
+def get_userinfo(unionid: str):
+    print(f"get_userinfo unionid:{unionid}")
+    result = select_user_by_unionid(unionid)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.post("/htz-api-pyservice/api/v1/userinfo/delete")
+def delete_userinfo(unionid: str):
+    print(f"delete_userinfo unionid:{unionid}")
+    delete_user_by_unionid(unionid)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 #uvicorn htz-api-server:app --host=0.0.0.0 --port=8082
