@@ -38,6 +38,12 @@ def save_loginfo(request_item: RequestItem):
         print(f"保存出错: {e}")
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
+@app.get("/htz-api-pyservice/api/v1/getlog")
+def save_loginfo(pkg: str):
+    print(pkg)
+    result = getlog(pkg)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
 @app.get("/htz-api-pyservice/api/v1/getaksk")
 def save_loginfo(request_item: AkskRequestItem):
     print(request_item)
