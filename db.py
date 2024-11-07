@@ -25,7 +25,10 @@ def get_log_info(pkg: str):
     cursor.execute(sql)
     result = cursor.fetchall()
     columns = [description[0] for description in cursor.description]
-    data = [dict(zip(columns, row)) for row in result]
+    if result is None:
+        data = {}
+    else:
+        data = [dict(zip(columns, row)) for row in result]
     cursor.close()
     conn.close()
     return json.dumps(data, indent=4)
@@ -39,7 +42,10 @@ def get_ak_sk(request_item: AkskRequestItem):
     result = cursor.fetchone()
     columns = [description[0] for description in cursor.description]
     #data = [dict(zip(columns, row)) for row in result]
-    data = dict(zip(columns, result))
+    if result is None:
+        data = {}
+    else:
+        data = dict(zip(columns, result))
     cursor.close()
     conn.close()
     return json.dumps(data, indent=4)
@@ -84,6 +90,9 @@ def select_user_by_unionid(unionid):
     cursor.execute(sql)
     result = cursor.fetchone()
     columns = [description[0] for description in cursor.description]
-    data = dict(zip(columns, result))
+    if result is None:
+        data = {}
+    else:
+        data = dict(zip(columns, result))
     conn.close()
     return json.dumps(data, indent=4)
