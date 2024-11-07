@@ -39,9 +39,9 @@ def save_loginfo(request_item: RequestItem):
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.get("/htz-api-pyservice/api/v1/getlog")
-def save_loginfo(pkg: str):
+def get_loginfo(pkg: str):
     print(pkg)
-    result = getlog(pkg)
+    result = get_log_info(pkg)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 @app.get("/htz-api-pyservice/api/v1/getaksk")
@@ -63,7 +63,7 @@ def update_userinfo(request_item: UserInfoItem):
     update_user_by_unionid(request_item)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
-@app.post("/htz-api-pyservice/api/v1/userinfo/get")
+@app.get("/htz-api-pyservice/api/v1/userinfo/get")
 def get_userinfo(unionid: str):
     print(f"get_userinfo unionid:{unionid}")
     result = select_user_by_unionid(unionid)
