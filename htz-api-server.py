@@ -54,7 +54,13 @@ def getaksk(appName: str):
 @app.post("/htz-api-pyservice/api/v1/userinfo/add")
 def save_userinfo(request_item: UserInfoItem):
     print(f"save_userinfo unionid:{request_item}")
-    insert_user(request_item)
+    existing_user = select_user_by_unionid(request_item.unionid)
+    if existing_user is not None:
+        print(f"Updating user with unionid: {request_item.unionid}")
+        update_user_by_unionid(request_item)
+    else:
+        print(f"Inserting new user with unionid: {request_item.unionid}")
+        insert_user(request_item)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.post("/htz-api-pyservice/api/v1/userinfo/update")
