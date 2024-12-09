@@ -10,9 +10,9 @@ def save_log_info(request_item: RequestItem):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO log_info (pkg, phone, type, info, time, user)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (request_item.pkg,  request_item.phone,  request_item.type,  request_item.info,  request_item.time,  request_item.user))
+        INSERT INTO log_info (pkg, version, phone, type, info, time, user)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (request_item.pkg,  request_item.version,  request_item.phone,  request_item.type,  request_item.info,  request_item.time,  request_item.user))
     conn.commit()
     cursor.close()
     conn.close()
