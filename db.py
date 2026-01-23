@@ -50,6 +50,78 @@ def get_ak_sk(appName: str):
     conn.close()
     return json.dumps(data, indent=4)
 
+def get_all_aksk():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM aksk")
+    result = cursor.fetchall()
+    columns = [description[0] for description in cursor.description]
+    if result is None:
+        data = []
+    else:
+        data = [dict(zip(columns, row)) for row in result]
+    cursor.close()
+    conn.close()
+    return data
+
+def insert_aksk(aksk: AkskRequestItem):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO aksk (appName, platform, accessKey, accessKeySecure, note)
+        VALUES (?, ?, ?, ?, ?)
+    """, (aksk.appName, aksk.platform, aksk.accessKey, aksk.accessKeySecure, aksk.note))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def update_aksk(aksk: AkskRequestItem):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE aksk SET appName=?, platform=?, accessKey=?, accessKeySecure=?, note=?
+        WHERE id=?
+    """, (aksk.appName, aksk.platform, aksk.accessKey, aksk.accessKeySecure, aksk.note, aksk.id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def delete_aksk(id: int):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM aksk WHERE id=?", (id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def get_all_users():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM user_info")
+    result = cursor.fetchall()
+    columns = [description[0] for description in cursor.description]
+    if result is None:
+        data = []
+    else:
+        data = [dict(zip(columns, row)) for row in result]
+    cursor.close()
+    conn.close()
+    return data
+
+def get_all_logs():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM log_info ORDER BY id DESC LIMIT 500")
+    result = cursor.fetchall()
+    columns = [description[0] for description in cursor.description]
+    if result is None:
+        data = []
+    else:
+        data = [dict(zip(columns, row)) for row in result]
+    cursor.close()
+    conn.close()
+    return data
+
 def insert_user(user: UserInfoItem):
     current_time = datetime.now()
     formatted_time = current_time.strftime('%Y-%m-%d %H:%M:%S')

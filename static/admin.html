@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTZ 管理后台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        .header { background: #1976d2; color: white; padding: 16px 24px; font-size: 20px; font-weight: 500; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .tabs { display: flex; background: white; border-radius: 8px 8px 0 0; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .tab { padding: 16px 32px; cursor: pointer; border: none; background: none; font-size: 15px; color: #666; transition: all 0.2s; }
+        .tab:hover { background: #f0f0f0; }
+        .tab.active { color: #1976d2; border-bottom: 3px solid #1976d2; font-weight: 500; }
+        .content { background: white; padding: 24px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); min-height: 500px; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        th { background: #fafafa; font-weight: 500; color: #333; }
+        tr:hover { background: #f5f5f5; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .btn-primary { background: #1976d2; color: white; }
+        .btn-primary:hover { background: #1565c0; }
+        .btn-danger { background: #d32f2f; color: white; }
+        .btn-danger:hover { background: #c62828; }
+        .btn-success { background: #388e3c; color: white; }
+        .btn-success:hover { background: #2e7d32; }
+        .btn-sm { padding: 4px 12px; font-size: 13px; }
+        .toolbar { margin-bottom: 16px; display: flex; gap: 12px; align-items: center; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; padding: 24px; border-radius: 8px; width: 500px; max-width: 90%; }
+        .modal-header { font-size: 18px; font-weight: 500; margin-bottom: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 500; color: #333; }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #1976d2; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+        .empty { text-align: center; padding: 40px; color: #999; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .badge-info { background: #e3f2fd; color: #1976d2; }
+        .search-box { padding: 10px 16px; border: 1px solid #ddd; border-radius: 4px; width: 300px; }
+        .text-truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+        .refresh-btn { margin-left: auto; }
+    </style>
+</head>
+<body>
+    <div class="header">HTZ 管理后台</div>
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('aksk')">AK/SK 管理</button>
+            <button class="tab" onclick="switchTab('users')">用户信息</button>
+            <button class="tab" onclick="switchTab('logs')">日志信息</button>
+        </div>
+        <div class="content">
+            <!-- AK/SK 管理面板 -->
+            <div id="aksk-panel" class="panel active">
+                <div class="toolbar">
+                    <button class="btn btn-primary" onclick="showAddAkskModal()">+ 新增 AK/SK</button>
+                    <button class="btn btn-success refresh-btn" onclick="loadAksk()">刷新</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>应用名称</th>
+                            <th>平台</th>
+                            <th>Access Key</th>
+                            <th>Access Key Secret</th>
+                            <th>备注</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aksk-table"></tbody>
+                </table>
+            </div>
+            <!-- 用户信息面板 -->
+            <div id="users-panel" class="panel">
+                <div class="toolbar">
+                    <input type="text" class="search-box" placeholder="搜索用户..." id="user-search" onkeyup="filterUsers()">
+                    <button class="btn btn-success refresh-btn" onclick="loadUsers()">刷新</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>UnionID</th>
+                            <th>昵称</th>
+                            <th>OpenID</th>
+                            <th>电话</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table"></tbody>
+                </table>
+            </div>
+            <!-- 日志信息面板 -->
+            <div id="logs-panel" class="panel">
+                <div class="toolbar">
+                    <input type="text" class="search-box" placeholder="搜索日志..." id="log-search" onkeyup="filterLogs()">
+                    <button class="btn btn-success refresh-btn" onclick="loadLogs()">刷新</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>包名</th>
+                            <th>版本</th>
+                            <th>手机</th>
+                            <th>类型</th>
+                            <th>信息</th>
+                            <th>时间</th>
+                            <th>用户</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-table"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- AK/SK 编辑弹窗 -->
+    <div id="aksk-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header" id="aksk-modal-title">新增 AK/SK</div>
+            <form id="aksk-form">
+                <input type="hidden" id="aksk-id">
+                <div class="form-group">
+                    <label>应用名称 *</label>
+                    <input type="text" id="aksk-appName" required>
+                </div>
+                <div class="form-group">
+                    <label>平台 *</label>
+                    <input type="text" id="aksk-platform" placeholder="如: android, ios, web" required>
+                </div>
+                <div class="form-group">
+                    <label>Access Key *</label>
+                    <input type="text" id="aksk-accessKey" required>
+                </div>
+                <div class="form-group">
+                    <label>Access Key Secret *</label>
+                    <input type="text" id="aksk-accessKeySecure" required>
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <textarea id="aksk-note" rows="3"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeAkskModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 用户详情弹窗 -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content" style="width: 600px;">
+            <div class="modal-header">用户详情</div>
+            <div id="user-detail"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeUserModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志详情弹窗 -->
+    <div id="log-modal" class="modal">
+        <div class="modal-content" style="width: 700px;">
+            <div class="modal-header">日志详情</div>
+            <div id="log-detail" style="max-height: 400px; overflow-y: auto;"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeLogModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/htz-api-pyservice/api/v1';
+        let akskData = [], usersData = [], logsData = [];
+
+        // 切换标签
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`${tab}-panel`).classList.add('active');
+            if (tab === 'aksk') loadAksk();
+            else if (tab === 'users') loadUsers();
+            else if (tab === 'logs') loadLogs();
+        }
+
+        // ===== AK/SK =====
+        async function loadAksk() {
+            const res = await fetch(`${API_BASE}/aksk/list`);
+            const json = await res.json();
+            akskData = json.data || [];
+            renderAksk();
+        }
+
+        function renderAksk() {
+            const tbody = document.getElementById('aksk-table');
+            if (akskData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无数据</td></tr>';
+                return;
+            }
+            tbody.innerHTML = akskData.map(item => `
+                <tr>
+                    <td>${item.id}</td>
+                    <td>${item.appName || ''}</td>
+                    <td><span class="badge badge-info">${item.platform || ''}</span></td>
+                    <td><span class="text-truncate" title="${item.accessKey || ''}">${item.accessKey || ''}</span></td>
+                    <td><span class="text-truncate" title="${item.accessKeySecure || ''}">${item.accessKeySecure || ''}</span></td>
+                    <td>${item.note || ''}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="editAksk(${item.id})">编辑</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteAksk(${item.id})">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function showAddAkskModal() {
+            document.getElementById('aksk-modal-title').textContent = '新增 AK/SK';
+            document.getElementById('aksk-form').reset();
+            document.getElementById('aksk-id').value = '';
+            document.getElementById('aksk-modal').classList.add('show');
+        }
+
+        function editAksk(id) {
+            const item = akskData.find(a => a.id === id);
+            if (!item) return;
+            document.getElementById('aksk-modal-title').textContent = '编辑 AK/SK';
+            document.getElementById('aksk-id').value = item.id;
+            document.getElementById('aksk-appName').value = item.appName || '';
+            document.getElementById('aksk-platform').value = item.platform || '';
+            document.getElementById('aksk-accessKey').value = item.accessKey || '';
+            document.getElementById('aksk-accessKeySecure').value = item.accessKeySecure || '';
+            document.getElementById('aksk-note').value = item.note || '';
+            document.getElementById('aksk-modal').classList.add('show');
+        }
+
+        function closeAkskModal() {
+            document.getElementById('aksk-modal').classList.remove('show');
+        }
+
+        document.getElementById('aksk-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('aksk-id').value;
+            const data = {
+                appName: document.getElementById('aksk-appName').value,
+                platform: document.getElementById('aksk-platform').value,
+                accessKey: document.getElementById('aksk-accessKey').value,
+                accessKeySecure: document.getElementById('aksk-accessKeySecure').value,
+                note: document.getElementById('aksk-note').value
+            };
+            if (id) data.id = parseInt(id);
+            const url = id ? `${API_BASE}/aksk/update` : `${API_BASE}/aksk/add`;
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            closeAkskModal();
+            loadAksk();
+        });
+
+        async function deleteAksk(id) {
+            if (!confirm('确定要删除这条记录吗？')) return;
+            await fetch(`${API_BASE}/aksk/delete?id=${id}`, { method: 'POST' });
+            loadAksk();
+        }
+
+        // ===== 用户 =====
+        async function loadUsers() {
+            const res = await fetch(`${API_BASE}/userinfo/list`);
+            const json = await res.json();
+            usersData = json.data || [];
+            renderUsers(usersData);
+        }
+
+        function renderUsers(data) {
+            const tbody = document.getElementById('users-table');
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无数据</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.id}</td>
+                    <td><span class="text-truncate" title="${item.unionid || ''}">${item.unionid || ''}</span></td>
+                    <td>${item.nickname || ''}</td>
+                    <td><span class="text-truncate" title="${item.openid || ''}">${item.openid || ''}</span></td>
+                    <td>${item.telephone || ''}</td>
+                    <td>${item.create_time || ''}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="showUserDetail(${item.id})">详情</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteUser('${item.unionid}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterUsers() {
+            const keyword = document.getElementById('user-search').value.toLowerCase();
+            const filtered = usersData.filter(u =>
+                (u.unionid || '').toLowerCase().includes(keyword) ||
+                (u.nickname || '').toLowerCase().includes(keyword) ||
+                (u.telephone || '').toLowerCase().includes(keyword)
+            );
+            renderUsers(filtered);
+        }
+
+        function showUserDetail(id) {
+            const item = usersData.find(u => u.id === id);
+            if (!item) return;
+            document.getElementById('user-detail').innerHTML = `
+                <table style="width:100%">
+                    ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:140px">${k}</td><td style="padding:8px;word-break:break-all">${v || '-'}</td></tr>`).join('')}
+                </table>
+            `;
+            document.getElementById('user-modal').classList.add('show');
+        }
+
+        function closeUserModal() {
+            document.getElementById('user-modal').classList.remove('show');
+        }
+
+        async function deleteUser(unionid) {
+            if (!confirm('确定要删除这个用户吗？')) return;
+            await fetch(`${API_BASE}/userinfo/delete?unionid=${encodeURIComponent(unionid)}`, { method: 'POST' });
+            loadUsers();
+        }
+
+        // ===== 日志 =====
+        async function loadLogs() {
+            const res = await fetch(`${API_BASE}/log/list`);
+            const json = await res.json();
+            logsData = json.data || [];
+            renderLogs(logsData);
+        }
+
+        function renderLogs(data) {
+            const tbody = document.getElementById('logs-table');
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无数据</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(item => `
+                <tr onclick="showLogDetail(${item.id})" style="cursor:pointer">
+                    <td>${item.id}</td>
+                    <td>${item.pkg || ''}</td>
+                    <td>${item.version || ''}</td>
+                    <td>${item.phone || ''}</td>
+                    <td><span class="badge badge-info">${item.type || ''}</span></td>
+                    <td><span class="text-truncate" title="${item.info || ''}">${item.info || ''}</span></td>
+                    <td>${item.time || ''}</td>
+                    <td>${item.user || ''}</td>
+                </tr>
+            `).join('');
+        }
+
+        function filterLogs() {
+            const keyword = document.getElementById('log-search').value.toLowerCase();
+            const filtered = logsData.filter(l =>
+                (l.pkg || '').toLowerCase().includes(keyword) ||
+                (l.info || '').toLowerCase().includes(keyword) ||
+                (l.type || '').toLowerCase().includes(keyword) ||
+                (l.user || '').toLowerCase().includes(keyword)
+            );
+            renderLogs(filtered);
+        }
+
+        function showLogDetail(id) {
+            const item = logsData.find(l => l.id === id);
+            if (!item) return;
+            document.getElementById('log-detail').innerHTML = `
+                <table style="width:100%">
+                    ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:100px">${k}</td><td style="padding:8px;word-break:break-all;white-space:pre-wrap">${v || '-'}</td></tr>`).join('')}
+                </table>
+            `;
+            document.getElementById('log-modal').classList.add('show');
+        }
+
+        function closeLogModal() {
+            document.getElementById('log-modal').classList.remove('show');
+        }
+
+        // 初始化加载
+        loadAksk();
+    </script>
+</body>
+</html>

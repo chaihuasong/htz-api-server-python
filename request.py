@@ -10,7 +10,12 @@ class RequestItem(BaseModel):
     user: str
 
 class AkskRequestItem(BaseModel):
+    id: int = None
     appName: str
+    platform: str
+    accessKey: str
+    accessKeySecure: str
+    note: str = ""
 
 class UserInfoItem(BaseModel):
     unionid: str

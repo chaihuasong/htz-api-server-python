@@ -1,7 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions  import RequestValidationError
-from fastapi.responses  import JSONResponse
+from fastapi.responses  import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import logging
+import os
 
 from request import RequestItem
 from request import AkskRequestItem
@@ -80,5 +82,47 @@ def delete_userinfo(unionid: str):
     print(f"delete_userinfo unionid:{unionid}")
     delete_user_by_unionid(unionid)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+# ===== AK/SK 管理 API =====
+@app.get("/htz-api-pyservice/api/v1/aksk/list")
+def list_aksk():
+    result = get_all_aksk()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.post("/htz-api-pyservice/api/v1/aksk/add")
+def add_aksk(request_item: AkskRequestItem):
+    print(f"add_aksk: {request_item}")
+    insert_aksk(request_item)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/aksk/update")
+def update_aksk_api(request_item: AkskRequestItem):
+    print(f"update_aksk: {request_item}")
+    update_aksk(request_item)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/aksk/delete")
+def delete_aksk_api(id: int):
+    print(f"delete_aksk id: {id}")
+    delete_aksk(id)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+# ===== 用户和日志列表 API =====
+@app.get("/htz-api-pyservice/api/v1/userinfo/list")
+def list_userinfo():
+    result = get_all_users()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.get("/htz-api-pyservice/api/v1/log/list")
+def list_logs():
+    result = get_all_logs()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+# ===== 网页管理后台 =====
+@app.get("/admin", response_class=HTMLResponse)
+def admin_page():
+    html_path = os.path.join(os.path.dirname(__file__), "static", "admin.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return f.read()
 
 #uvicorn htz-api-server:app --host=0.0.0.0 --port=8082
