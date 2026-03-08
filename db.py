@@ -140,3 +140,94 @@ def select_user_by_unionid(unionid: str):
         result = cursor.fetchone()
         data = _row_to_dict(result) or {}
     return json.dumps(data, indent=4)
+
+# ===== 用量统计操作 =====
+
+def init_app_usage_table():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS app_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT NOT NULL,
+                user_id TEXT DEFAULT '',
+                date TEXT NOT NULL,
+                open_count INTEGER DEFAULT 0,
+                duration_ms INTEGER DEFAULT 0,
+                version TEXT DEFAULT '',
+                pkg TEXT DEFAULT '',
+                created_at TEXT,
+                UNIQUE(device_id, date)
+            )
+        """)
+
+def save_app_usage(item: AppUsageItem):
+    formatted_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO app_usage (device_id, user_id, date, open_count, duration_ms, version, pkg, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(device_id, date) DO UPDATE SET
+                open_count = excluded.open_count,
+                duration_ms = excluded.duration_ms,
+                user_id = CASE WHEN excluded.user_id != '' THEN excluded.user_id ELSE app_usage.user_id END,
+                version = CASE WHEN excluded.version != '' THEN excluded.version ELSE app_usage.version END,
+                pkg = CASE WHEN excluded.pkg != '' THEN excluded.pkg ELSE app_usage.pkg END,
+                created_at = excluded.created_at
+        """, (item.device_id, item.user_id, item.date, item.open_count,
+              item.duration_ms, item.version, item.pkg, formatted_time))
+
+def save_app_usage_batch(items: list):
+    for item in items:
+        save_app_usage(item)
+
+def get_all_app_usage():
+    with get_cursor() as cursor:
+        cursor.execute("SELECT * FROM app_usage ORDER BY date DESC, id DESC LIMIT 1000")
+        return _rows_to_list(cursor.fetchall())
+
+def get_app_usage_summary():
+    with get_cursor() as cursor:
+        # 总设备数
+        cursor.execute("SELECT COUNT(DISTINCT device_id) FROM app_usage")
+        total_devices = cursor.fetchone()[0]
+
+        # 总打开次数
+        cursor.execute("SELECT COALESCE(SUM(open_count), 0) FROM app_usage")
+        total_opens = cursor.fetchone()[0]
+
+        # 总使用时长
+        cursor.execute("SELECT COALESCE(SUM(duration_ms), 0) FROM app_usage")
+        total_duration = cursor.fetchone()[0]
+
+        # 总使用天数（有记录的日期数）
+        cursor.execute("SELECT COUNT(DISTINCT date) FROM app_usage")
+        total_days = cursor.fetchone()[0]
+
+        # 今日统计
+        today = datetime.now().strftime('%Y-%m-%d')
+        cursor.execute("SELECT COUNT(DISTINCT device_id), COALESCE(SUM(open_count), 0), COALESCE(SUM(duration_ms), 0) FROM app_usage WHERE date=?", (today,))
+        today_row = cursor.fetchone()
+        today_devices = today_row[0]
+        today_opens = today_row[1]
+        today_duration = today_row[2]
+
+        # 最近30天每日统计
+        cursor.execute("""
+            SELECT date, COUNT(DISTINCT device_id) as devices, SUM(open_count) as opens, SUM(duration_ms) as duration
+            FROM app_usage
+            WHERE date >= date('now', '-30 days')
+            GROUP BY date
+            ORDER BY date ASC
+        """)
+        daily_stats = _rows_to_list(cursor.fetchall())
+
+        return {
+            "total_devices": total_devices,
+            "total_opens": total_opens,
+            "total_duration_ms": total_duration,
+            "total_days": total_days,
+            "today_devices": today_devices,
+            "today_opens": today_opens,
+            "today_duration_ms": today_duration,
+            "daily_stats": daily_stats
+        }

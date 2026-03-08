@@ -5,15 +5,18 @@ from fastapi.staticfiles import StaticFiles
 import logging
 import os
 
-from request import RequestItem
-from request import AkskRequestItem
+from request import RequestItem, AkskRequestItem, AppUsageItem
 from db import *
+from typing import List
 
 # 初始化日志记录器
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
 
 app = FastAPI()
+
+# 初始化数据库表
+init_app_usage_table()
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -116,6 +119,35 @@ def list_userinfo():
 @app.get("/htz-api-pyservice/api/v1/log/list")
 def list_logs():
     result = get_all_logs()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+# ===== 用量统计 API =====
+@app.post("/htz-api-pyservice/api/v1/usage/report")
+def report_usage(item: AppUsageItem):
+    print(f"report_usage: {item}")
+    try:
+        save_app_usage(item)
+    except Exception as e:
+        print(f"report_usage error: {e}")
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/usage/report/batch")
+def report_usage_batch(items: List[AppUsageItem]):
+    print(f"report_usage_batch: {len(items)} items")
+    try:
+        save_app_usage_batch(items)
+    except Exception as e:
+        print(f"report_usage_batch error: {e}")
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.get("/htz-api-pyservice/api/v1/usage/list")
+def list_usage():
+    result = get_all_app_usage()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.get("/htz-api-pyservice/api/v1/usage/summary")
+def usage_summary():
+    result = get_app_usage_summary()
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 # ===== 网页管理后台 =====

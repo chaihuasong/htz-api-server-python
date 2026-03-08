@@ -44,19 +44,42 @@
         .search-box { padding: 10px 16px; border: 1px solid #ddd; border-radius: 4px; width: 300px; }
         .text-truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
         .refresh-btn { margin-left: auto; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; }
+        .stat-card:nth-child(2) { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .stat-card:nth-child(3) { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .stat-card:nth-child(4) { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .stat-card:nth-child(5) { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        .stat-card:nth-child(6) { background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+        .stat-card .stat-label { font-size: 14px; opacity: 0.9; }
+        .chart-container { background: #fafafa; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+        .chart-title { font-size: 16px; font-weight: 500; margin-bottom: 16px; color: #333; }
+        .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 200px; padding: 0 4px; }
+        .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+        .bar { width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; transition: height 0.3s; cursor: pointer; position: relative; }
+        .bar:hover::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; z-index: 10; }
+        .bar-label { font-size: 10px; color: #999; margin-top: 4px; writing-mode: vertical-lr; text-orientation: mixed; max-height: 50px; overflow: hidden; }
+        .bar-opens { background: #1976d2; }
+        .bar-duration { background: #43e97b; }
+        .chart-legend { display: flex; gap: 20px; margin-top: 12px; justify-content: center; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #666; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 2px; }
+        .section-title { font-size: 16px; font-weight: 500; margin: 24px 0 12px; color: #333; }
     </style>
 </head>
 <body>
     <div class="header">HTZ 管理后台</div>
     <div class="container">
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('aksk')">AK/SK 管理</button>
+            <button class="tab active" onclick="switchTab('usage')">用量统计</button>
             <button class="tab" onclick="switchTab('users')">用户信息</button>
             <button class="tab" onclick="switchTab('logs')">日志信息</button>
+            <button class="tab" onclick="switchTab('aksk')">AK/SK 管理</button>
         </div>
         <div class="content">
             <!-- AK/SK 管理面板 -->
-            <div id="aksk-panel" class="panel active">
+            <div id="aksk-panel" class="panel">
                 <div class="toolbar">
                     <button class="btn btn-primary" onclick="showAddAkskModal()">+ 新增 AK/SK</button>
                     <button class="btn btn-success refresh-btn" onclick="loadAksk()">刷新</button>
@@ -117,6 +140,40 @@
                         </tr>
                     </thead>
                     <tbody id="logs-table"></tbody>
+                </table>
+            </div>
+            <!-- 用量统计面板 -->
+            <div id="usage-panel" class="panel active">
+                <div class="toolbar">
+                    <button class="btn btn-success refresh-btn" onclick="loadUsage()">刷新</button>
+                </div>
+                <div class="stats-grid" id="usage-stats-grid"></div>
+                <div class="chart-container">
+                    <div class="chart-title">最近30天趋势</div>
+                    <div class="bar-chart" id="usage-chart"></div>
+                    <div class="chart-legend">
+                        <div class="legend-item"><div class="legend-dot bar-opens"></div>打开次数</div>
+                        <div class="legend-item"><div class="legend-dot bar-duration"></div>使用时长(分钟)</div>
+                    </div>
+                </div>
+                <div class="section-title">详细记录</div>
+                <div class="toolbar">
+                    <input type="text" class="search-box" placeholder="搜索设备ID/用户..." id="usage-search" onkeyup="filterUsage()">
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>设备ID</th>
+                            <th>用户</th>
+                            <th>日期</th>
+                            <th>打开次数</th>
+                            <th>使用时长</th>
+                            <th>版本</th>
+                            <th>包名</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usage-table"></tbody>
                 </table>
             </div>
         </div>
@@ -180,7 +237,7 @@
 
     <script>
         const API_BASE = '/htz-api-pyservice/api/v1';
-        let akskData = [], usersData = [], logsData = [];
+        let akskData = [], usersData = [], logsData = [], usageData = [];
 
         // 切换标签
         function switchTab(tab) {
@@ -191,6 +248,7 @@
             if (tab === 'aksk') loadAksk();
             else if (tab === 'users') loadUsers();
             else if (tab === 'logs') loadLogs();
+            else if (tab === 'usage') loadUsage();
         }
 
         // ===== AK/SK =====
@@ -389,8 +447,100 @@
             document.getElementById('log-modal').classList.remove('show');
         }
 
+        // ===== 用量统计 =====
+        function formatDuration(ms) {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const remainMinutes = minutes % 60;
+            if (hours > 0) return hours + '小时' + remainMinutes + '分钟';
+            if (minutes > 0) return minutes + '分钟';
+            return seconds + '秒';
+        }
+
+        async function loadUsage() {
+            const [summaryRes, listRes] = await Promise.all([
+                fetch(`${API_BASE}/usage/summary`),
+                fetch(`${API_BASE}/usage/list`)
+            ]);
+            const summaryJson = await summaryRes.json();
+            const listJson = await listRes.json();
+            const summary = summaryJson.data || {};
+            usageData = listJson.data || [];
+            renderUsageSummary(summary);
+            renderUsageChart(summary.daily_stats || []);
+            renderUsage(usageData);
+        }
+
+        function renderUsageSummary(s) {
+            document.getElementById('usage-stats-grid').innerHTML = `
+                <div class="stat-card"><div class="stat-value">${s.today_opens || 0}</div><div class="stat-label">今日打开次数</div></div>
+                <div class="stat-card"><div class="stat-value">${formatDuration(s.today_duration_ms || 0)}</div><div class="stat-label">今日使用时长</div></div>
+                <div class="stat-card"><div class="stat-value">${s.today_devices || 0}</div><div class="stat-label">今日活跃设备</div></div>
+                <div class="stat-card"><div class="stat-value">${s.total_opens || 0}</div><div class="stat-label">累计打开次数</div></div>
+                <div class="stat-card"><div class="stat-value">${formatDuration(s.total_duration_ms || 0)}</div><div class="stat-label">累计使用时长</div></div>
+                <div class="stat-card"><div class="stat-value">${s.total_devices || 0}</div><div class="stat-label">累计设备数</div></div>
+            `;
+        }
+
+        function renderUsageChart(dailyStats) {
+            const chart = document.getElementById('usage-chart');
+            if (!dailyStats || dailyStats.length === 0) {
+                chart.innerHTML = '<div class="empty" style="width:100%;height:200px;display:flex;align-items:center;justify-content:center">暂无数据</div>';
+                return;
+            }
+            const maxOpens = Math.max(...dailyStats.map(d => d.opens || 0), 1);
+            const maxDuration = Math.max(...dailyStats.map(d => (d.duration || 0) / 60000), 1);
+            chart.innerHTML = dailyStats.map(d => {
+                const opensH = Math.max(((d.opens || 0) / maxOpens) * 180, 2);
+                const durationMin = (d.duration || 0) / 60000;
+                const durationH = Math.max((durationMin / maxDuration) * 180, 2);
+                const dateLabel = d.date ? d.date.substring(5) : '';
+                return `
+                    <div class="bar-group">
+                        <div style="display:flex;gap:2px;align-items:flex-end;height:180px;width:100%">
+                            <div class="bar bar-opens" style="height:${opensH}px" data-tip="打开${d.opens || 0}次"></div>
+                            <div class="bar bar-duration" style="height:${durationH}px" data-tip="${durationMin.toFixed(1)}分钟"></div>
+                        </div>
+                        <div class="bar-label">${dateLabel}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderUsage(data) {
+            const tbody = document.getElementById('usage-table');
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无数据</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.id}</td>
+                    <td><span class="text-truncate" title="${item.device_id || ''}">${item.device_id || ''}</span></td>
+                    <td>${item.user_id || '-'}</td>
+                    <td>${item.date || ''}</td>
+                    <td>${item.open_count || 0}</td>
+                    <td>${formatDuration(item.duration_ms || 0)}</td>
+                    <td><span class="badge badge-info">${item.version || ''}</span></td>
+                    <td>${item.pkg || ''}</td>
+                </tr>
+            `).join('');
+        }
+
+        function filterUsage() {
+            const keyword = document.getElementById('usage-search').value.toLowerCase();
+            const filtered = usageData.filter(u =>
+                (u.device_id || '').toLowerCase().includes(keyword) ||
+                (u.user_id || '').toLowerCase().includes(keyword) ||
+                (u.date || '').toLowerCase().includes(keyword) ||
+                (u.version || '').toLowerCase().includes(keyword)
+            );
+            renderUsage(filtered);
+        }
+
         // 初始化加载
-        loadAksk();
+        loadUsage();
     </script>
 </body>
 </html>

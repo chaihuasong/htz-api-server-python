@@ -17,6 +17,15 @@ class AkskRequestItem(BaseModel):
     accessKeySecure: str
     note: str = ""
 
+class AppUsageItem(BaseModel):
+    device_id: str
+    user_id: str = ""
+    date: str
+    open_count: int = 0
+    duration_ms: int = 0
+    version: str = ""
+    pkg: str = ""
+
 class UserInfoItem(BaseModel):
     unionid: str
     nickname: str
