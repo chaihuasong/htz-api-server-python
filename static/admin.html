@@ -166,6 +166,7 @@
                             <th>ID</th>
                             <th>设备ID</th>
                             <th>用户</th>
+                            <th>昵称</th>
                             <th>日期</th>
                             <th>打开次数</th>
                             <th>使用时长</th>
@@ -511,14 +512,15 @@
         function renderUsage(data) {
             const tbody = document.getElementById('usage-table');
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="empty">暂无数据</td></tr>';
                 return;
             }
             tbody.innerHTML = data.map(item => `
                 <tr>
                     <td>${item.id}</td>
                     <td><span class="text-truncate" title="${item.device_id || ''}">${item.device_id || ''}</span></td>
-                    <td>${item.nickname ? `<span title="${item.user_id || ''}">${item.nickname}</span>` : (item.user_id || '-')}</td>
+                    <td>${item.user_id || '-'}</td>
+                    <td>${item.nickname || '-'}</td>
                     <td>${item.date || ''}</td>
                     <td>${item.open_count || 0}</td>
                     <td>${formatDuration(item.duration_ms || 0)}</td>
