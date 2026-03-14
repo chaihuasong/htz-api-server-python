@@ -182,7 +182,13 @@ def save_app_usage_batch(items: list):
 
 def get_all_app_usage():
     with get_cursor() as cursor:
-        cursor.execute("SELECT * FROM app_usage ORDER BY date DESC, id DESC LIMIT 1000")
+        cursor.execute("""
+            SELECT a.*, u.nickname
+            FROM app_usage a
+            LEFT JOIN user_info u ON a.user_id = u.unionid
+            ORDER BY a.date DESC, a.id DESC
+            LIMIT 1000
+        """)
         return _rows_to_list(cursor.fetchall())
 
 def get_app_usage_summary():

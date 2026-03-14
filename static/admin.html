@@ -518,7 +518,7 @@
                 <tr>
                     <td>${item.id}</td>
                     <td><span class="text-truncate" title="${item.device_id || ''}">${item.device_id || ''}</span></td>
-                    <td>${item.user_id || '-'}</td>
+                    <td>${item.nickname ? `<span title="${item.user_id || ''}">${item.nickname}</span>` : (item.user_id || '-')}</td>
                     <td>${item.date || ''}</td>
                     <td>${item.open_count || 0}</td>
                     <td>${formatDuration(item.duration_ms || 0)}</td>
@@ -533,6 +533,7 @@
             const filtered = usageData.filter(u =>
                 (u.device_id || '').toLowerCase().includes(keyword) ||
                 (u.user_id || '').toLowerCase().includes(keyword) ||
+                (u.nickname || '').toLowerCase().includes(keyword) ||
                 (u.date || '').toLowerCase().includes(keyword) ||
                 (u.version || '').toLowerCase().includes(keyword)
             );
