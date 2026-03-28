@@ -88,6 +88,11 @@ def update_userinfo(request_item: UserInfoItem):
     update_user_by_unionid(request_item)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
+@app.get("/htz-api-pyservice/api/v1/userinfo/getbyphone")
+def get_userinfo_by_phone(telephone: str):
+    result = select_user_by_telephone(telephone)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
 @app.get("/htz-api-pyservice/api/v1/userinfo/get")
 def get_userinfo(unionid: str):
     print(f"get_userinfo unionid:{unionid}")

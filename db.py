@@ -134,6 +134,13 @@ def update_user_by_unionid(user: UserInfoItem):
               user.province, user.city, user.language, user.group_id, user.telephone,
               user.pwd, user.sign, user.note, formatted_time, user.unionid))
 
+def select_user_by_telephone(telephone: str):
+    with get_cursor() as cursor:
+        cursor.execute("SELECT * FROM user_info WHERE telephone=?", (telephone,))
+        result = cursor.fetchone()
+        data = _row_to_dict(result) or {}
+    return json.dumps(data, indent=4)
+
 def select_user_by_unionid(unionid: str):
     with get_cursor() as cursor:
         cursor.execute("SELECT * FROM user_info WHERE unionid=?", (unionid,))
@@ -142,6 +149,51 @@ def select_user_by_unionid(unionid: str):
     return json.dumps(data, indent=4)
 
 # ===== 用量统计操作 =====
+
+# ===== 二维码登录会话操作 =====
+
+def init_qr_session_table():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS qr_session (
+                session_id TEXT PRIMARY KEY,
+                status TEXT DEFAULT 'pending',
+                token TEXT DEFAULT '',
+                user_info TEXT DEFAULT '{}',
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+
+def create_qr_session(session_id: str):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO qr_session (session_id, status, token, user_info, created_at, updated_at)
+            VALUES (?, 'pending', '', '{}', ?, ?)
+        """, (session_id, now, now))
+
+def get_qr_session(session_id: str):
+    with get_cursor() as cursor:
+        cursor.execute("SELECT * FROM qr_session WHERE session_id=?", (session_id,))
+        return _row_to_dict(cursor.fetchone())
+
+def confirm_qr_session(session_id: str, token: str, user_info: str):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            UPDATE qr_session SET status='confirmed', token=?, user_info=?, updated_at=?
+            WHERE session_id=?
+        """, (token, user_info, now, session_id))
+
+def expire_qr_session(session_id: str):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            UPDATE qr_session SET status='expired', updated_at=? WHERE session_id=?
+        """, (now, session_id))
+
+# ===== 用量统计初始化 =====
 
 def init_app_usage_table():
     with get_cursor() as cursor:
@@ -155,26 +207,38 @@ def init_app_usage_table():
                 duration_ms INTEGER DEFAULT 0,
                 version TEXT DEFAULT '',
                 pkg TEXT DEFAULT '',
+                phone_model TEXT DEFAULT '',
+                os_version TEXT DEFAULT '',
                 created_at TEXT,
                 UNIQUE(device_id, date)
             )
         """)
+        # 兼容旧表，补充新列
+        for col, definition in [("phone_model", "TEXT DEFAULT ''"), ("os_version", "TEXT DEFAULT ''"), ("network_type", "TEXT DEFAULT ''"), ("source", "TEXT DEFAULT ''")]:
+            try:
+                cursor.execute(f"ALTER TABLE app_usage ADD COLUMN {col} {definition}")
+            except Exception:
+                pass  # 列已存在则忽略
 
 def save_app_usage(item: AppUsageItem):
     formatted_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with get_cursor() as cursor:
         cursor.execute("""
-            INSERT INTO app_usage (device_id, user_id, date, open_count, duration_ms, version, pkg, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO app_usage (device_id, user_id, date, open_count, duration_ms, version, pkg, phone_model, os_version, network_type, source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(device_id, date) DO UPDATE SET
                 open_count = excluded.open_count,
                 duration_ms = excluded.duration_ms,
                 user_id = CASE WHEN excluded.user_id != '' THEN excluded.user_id ELSE app_usage.user_id END,
                 version = CASE WHEN excluded.version != '' THEN excluded.version ELSE app_usage.version END,
                 pkg = CASE WHEN excluded.pkg != '' THEN excluded.pkg ELSE app_usage.pkg END,
+                phone_model = CASE WHEN excluded.phone_model != '' THEN excluded.phone_model ELSE app_usage.phone_model END,
+                os_version = CASE WHEN excluded.os_version != '' THEN excluded.os_version ELSE app_usage.os_version END,
+                network_type = CASE WHEN excluded.network_type != '' THEN excluded.network_type ELSE app_usage.network_type END,
+                source = CASE WHEN excluded.source != '' THEN excluded.source ELSE app_usage.source END,
                 created_at = excluded.created_at
         """, (item.device_id, item.user_id, item.date, item.open_count,
-              item.duration_ms, item.version, item.pkg, formatted_time))
+              item.duration_ms, item.version, item.pkg, item.phone_model, item.os_version, item.network_type, item.source, formatted_time))
 
 def save_app_usage_batch(items: list):
     for item in items:
@@ -227,6 +291,31 @@ def get_app_usage_summary():
         """)
         daily_stats = _rows_to_list(cursor.fetchall())
 
+        # 按来源统计（累计）
+        cursor.execute("""
+            SELECT COALESCE(NULLIF(source, ''), '未知') as source,
+                   COUNT(DISTINCT device_id) as devices,
+                   COALESCE(SUM(open_count), 0) as opens,
+                   COALESCE(SUM(duration_ms), 0) as duration_ms
+            FROM app_usage
+            GROUP BY source
+            ORDER BY opens DESC
+        """)
+        source_stats = _rows_to_list(cursor.fetchall())
+
+        # 按来源统计（今日）
+        cursor.execute("""
+            SELECT COALESCE(NULLIF(source, ''), '未知') as source,
+                   COUNT(DISTINCT device_id) as devices,
+                   COALESCE(SUM(open_count), 0) as opens,
+                   COALESCE(SUM(duration_ms), 0) as duration_ms
+            FROM app_usage
+            WHERE date=?
+            GROUP BY source
+            ORDER BY opens DESC
+        """, (today,))
+        today_source_stats = _rows_to_list(cursor.fetchall())
+
         return {
             "total_devices": total_devices,
             "total_opens": total_opens,
@@ -235,5 +324,7 @@ def get_app_usage_summary():
             "today_devices": today_devices,
             "today_opens": today_opens,
             "today_duration_ms": today_duration,
-            "daily_stats": daily_stats
+            "daily_stats": daily_stats,
+            "source_stats": source_stats,
+            "today_source_stats": today_source_stats
         }
