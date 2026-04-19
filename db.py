@@ -193,6 +193,78 @@ def expire_qr_session(session_id: str):
             UPDATE qr_session SET status='expired', updated_at=? WHERE session_id=?
         """, (now, session_id))
 
+# ===== 意见反馈 =====
+
+def init_feedback_table():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT DEFAULT '',
+                nickname TEXT DEFAULT '',
+                contact TEXT DEFAULT '',
+                content TEXT NOT NULL,
+                category TEXT DEFAULT '',
+                pkg TEXT DEFAULT '',
+                version TEXT DEFAULT '',
+                phone_model TEXT DEFAULT '',
+                os_version TEXT DEFAULT '',
+                device_id TEXT DEFAULT '',
+                status TEXT DEFAULT 'pending',
+                reply TEXT DEFAULT '',
+                image_urls TEXT DEFAULT '',
+                video_url TEXT DEFAULT '',
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        # 兼容旧表，补充新列
+        for col, definition in [("image_urls", "TEXT DEFAULT ''"), ("video_url", "TEXT DEFAULT ''")]:
+            try:
+                cursor.execute(f"ALTER TABLE feedback ADD COLUMN {col} {definition}")
+            except Exception:
+                pass
+
+
+def save_feedback(item: FeedbackItem):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO feedback (user_id, nickname, contact, content, category,
+                pkg, version, phone_model, os_version, device_id, status, reply,
+                image_urls, video_url, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (item.user_id, item.nickname, item.contact, item.content, item.category,
+              item.pkg, item.version, item.phone_model, item.os_version, item.device_id,
+              item.status or "pending", item.reply, item.image_urls, item.video_url, now, now))
+
+
+def get_all_feedback():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            SELECT f.*, u.nickname AS user_nickname
+            FROM feedback f
+            LEFT JOIN user_info u ON f.user_id = u.unionid
+            ORDER BY f.id DESC
+            LIMIT 1000
+        """)
+        return _rows_to_list(cursor.fetchall())
+
+
+def update_feedback(item: FeedbackItem):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            UPDATE feedback SET status=?, reply=?, updated_at=?
+            WHERE id=?
+        """, (item.status, item.reply, now, item.id))
+
+
+def delete_feedback(id: int):
+    with get_cursor() as cursor:
+        cursor.execute("DELETE FROM feedback WHERE id=?", (id,))
+
+
 # ===== 用量统计初始化 =====
 
 def init_app_usage_table():

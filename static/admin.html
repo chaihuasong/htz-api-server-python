@@ -75,9 +75,41 @@
             <button class="tab active" onclick="switchTab('usage')">用量统计</button>
             <button class="tab" onclick="switchTab('users')">用户信息</button>
             <button class="tab" onclick="switchTab('logs')">日志信息</button>
+            <button class="tab" onclick="switchTab('feedback')">意见反馈</button>
             <button class="tab" onclick="switchTab('aksk')">AK/SK 管理</button>
         </div>
         <div class="content">
+            <!-- 意见反馈面板 -->
+            <div id="feedback-panel" class="panel">
+                <div class="toolbar">
+                    <input type="text" class="search-box" placeholder="搜索反馈内容/联系方式..." id="feedback-search" onkeyup="filterFeedback()">
+                    <select id="feedback-status-filter" class="search-box" style="width:160px" onchange="filterFeedback()">
+                        <option value="">全部状态</option>
+                        <option value="pending">未处理</option>
+                        <option value="processing">处理中</option>
+                        <option value="done">已回复</option>
+                    </select>
+                    <button class="btn btn-success refresh-btn" onclick="loadFeedback()">刷新</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>用户</th>
+                            <th>联系方式</th>
+                            <th>分类</th>
+                            <th>内容</th>
+                            <th>附件</th>
+                            <th>版本</th>
+                            <th>设备</th>
+                            <th>状态</th>
+                            <th>提交时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="feedback-table"></tbody>
+                </table>
+            </div>
             <!-- AK/SK 管理面板 -->
             <div id="aksk-panel" class="panel">
                 <div class="toolbar">
@@ -148,6 +180,7 @@
                     <button class="btn btn-success refresh-btn" onclick="loadUsage()">刷新</button>
                 </div>
                 <div class="stats-grid" id="usage-stats-grid"></div>
+                <div id="usage-source-section"></div>
                 <div class="chart-container">
                     <div class="chart-title">最近30天趋势</div>
                     <div class="bar-chart" id="usage-chart"></div>
@@ -170,6 +203,10 @@
                             <th>日期</th>
                             <th>打开次数</th>
                             <th>使用时长</th>
+                            <th>来源</th>
+                            <th>手机型号</th>
+                            <th>系统版本</th>
+                            <th>网络类型</th>
                             <th>版本</th>
                             <th>包名</th>
                         </tr>
@@ -225,6 +262,33 @@
         </div>
     </div>
 
+    <!-- 反馈详情/回复弹窗 -->
+    <div id="feedback-modal" class="modal">
+        <div class="modal-content" style="width: 700px;">
+            <div class="modal-header">反馈详情</div>
+            <div id="feedback-detail" style="max-height: 320px; overflow-y: auto; margin-bottom: 16px;"></div>
+            <form id="feedback-form">
+                <input type="hidden" id="feedback-id">
+                <div class="form-group">
+                    <label>处理状态</label>
+                    <select id="feedback-status" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:4px;font-size:14px;">
+                        <option value="pending">未处理</option>
+                        <option value="processing">处理中</option>
+                        <option value="done">已回复</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>回复内容</label>
+                    <textarea id="feedback-reply" rows="4" placeholder="管理员回复（仅供后台备注）"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeFeedbackModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 日志详情弹窗 -->
     <div id="log-modal" class="modal">
         <div class="modal-content" style="width: 700px;">
@@ -238,7 +302,7 @@
 
     <script>
         const API_BASE = '/htz-api-pyservice/api/v1';
-        let akskData = [], usersData = [], logsData = [], usageData = [];
+        let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [];
 
         // 切换标签
         function switchTab(tab) {
@@ -250,6 +314,133 @@
             else if (tab === 'users') loadUsers();
             else if (tab === 'logs') loadLogs();
             else if (tab === 'usage') loadUsage();
+            else if (tab === 'feedback') loadFeedback();
+        }
+
+        // ===== 意见反馈 =====
+        async function loadFeedback() {
+            const res = await fetch(`${API_BASE}/feedback/list`);
+            const json = await res.json();
+            feedbackData = json.data || [];
+            renderFeedback(feedbackData);
+        }
+
+        function statusLabel(s) {
+            if (s === 'done') return '<span class="badge" style="background:#e8f5e9;color:#388e3c">已回复</span>';
+            if (s === 'processing') return '<span class="badge" style="background:#fff3e0;color:#f57c00">处理中</span>';
+            return '<span class="badge" style="background:#ffebee;color:#d32f2f">未处理</span>';
+        }
+
+        function parseImages(item) {
+            if (!item.image_urls) return [];
+            try { const arr = JSON.parse(item.image_urls); return Array.isArray(arr) ? arr : []; } catch (e) { return []; }
+        }
+
+        function feedbackThumbsHtml(item) {
+            const imgs = parseImages(item);
+            const parts = [];
+            imgs.slice(0, 3).forEach(u => {
+                parts.push(`<img src="${u}" style="width:36px;height:36px;object-fit:cover;border-radius:4px;margin-right:4px;cursor:pointer" onclick="window.open('${u}','_blank')" />`);
+            });
+            if (imgs.length > 3) parts.push(`<span style="font-size:12px;color:#999">+${imgs.length - 3}</span>`);
+            if (item.video_url) {
+                parts.push(`<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#000;color:#fff;border-radius:4px;margin-left:4px;cursor:pointer;font-size:18px" onclick="window.open('${item.video_url}','_blank')" title="视频">▶</span>`);
+            }
+            return parts.length ? `<div style="display:flex;align-items:center">${parts.join('')}</div>` : '-';
+        }
+
+        function renderFeedback(data) {
+            const tbody = document.getElementById('feedback-table');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" class="empty">暂无反馈</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.id}</td>
+                    <td>${item.user_nickname || item.nickname || '-'}</td>
+                    <td>${item.contact || '-'}</td>
+                    <td>${item.category ? `<span class="badge badge-info">${item.category}</span>` : '-'}</td>
+                    <td><span class="text-truncate" title="${(item.content || '').replace(/"/g,'&quot;')}">${item.content || ''}</span></td>
+                    <td>${feedbackThumbsHtml(item)}</td>
+                    <td>${item.version || '-'}</td>
+                    <td>${item.phone_model || '-'}</td>
+                    <td>${statusLabel(item.status)}</td>
+                    <td>${item.created_at || ''}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="showFeedbackDetail(${item.id})">查看</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteFeedback(${item.id})">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterFeedback() {
+            const keyword = document.getElementById('feedback-search').value.toLowerCase();
+            const status = document.getElementById('feedback-status-filter').value;
+            const filtered = feedbackData.filter(f => {
+                const matchKey = (f.content || '').toLowerCase().includes(keyword) ||
+                    (f.contact || '').toLowerCase().includes(keyword) ||
+                    (f.nickname || '').toLowerCase().includes(keyword) ||
+                    (f.user_nickname || '').toLowerCase().includes(keyword);
+                const matchStatus = !status || f.status === status;
+                return matchKey && matchStatus;
+            });
+            renderFeedback(filtered);
+        }
+
+        function showFeedbackDetail(id) {
+            const item = feedbackData.find(f => f.id === id);
+            if (!item) return;
+            const fields = ['id','user_id','user_nickname','nickname','contact','category','content','reply','status',
+                'pkg','version','phone_model','os_version','device_id','created_at','updated_at'];
+            const imgs = parseImages(item);
+            const mediaHtml = (imgs.length || item.video_url) ? `
+                <div style="margin-bottom:12px">
+                    <div style="font-weight:500;margin-bottom:6px">附件</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start">
+                        ${imgs.map(u => `<a href="${u}" target="_blank"><img src="${u}" style="width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid #eee" /></a>`).join('')}
+                        ${item.video_url ? `<video src="${item.video_url}" controls style="width:240px;max-height:200px;border-radius:6px;background:#000"></video>` : ''}
+                    </div>
+                </div>
+            ` : '';
+            document.getElementById('feedback-detail').innerHTML = mediaHtml + `
+                <table style="width:100%">
+                    ${fields.map(k => `<tr><td style="padding:6px;font-weight:500;width:120px">${k}</td><td style="padding:6px;word-break:break-all;white-space:pre-wrap">${item[k] === undefined || item[k] === null ? '-' : item[k]}</td></tr>`).join('')}
+                </table>
+            `;
+            document.getElementById('feedback-id').value = item.id;
+            document.getElementById('feedback-status').value = item.status || 'pending';
+            document.getElementById('feedback-reply').value = item.reply || '';
+            document.getElementById('feedback-modal').classList.add('show');
+        }
+
+        function closeFeedbackModal() {
+            document.getElementById('feedback-modal').classList.remove('show');
+        }
+
+        document.getElementById('feedback-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('feedback-id').value);
+            const data = {
+                id,
+                content: '_',
+                status: document.getElementById('feedback-status').value,
+                reply: document.getElementById('feedback-reply').value
+            };
+            await fetch(`${API_BASE}/feedback/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            closeFeedbackModal();
+            loadFeedback();
+        });
+
+        async function deleteFeedback(id) {
+            if (!confirm('确定要删除这条反馈吗？')) return;
+            await fetch(`${API_BASE}/feedback/delete?id=${id}`, { method: 'POST' });
+            loadFeedback();
         }
 
         // ===== AK/SK =====
@@ -482,6 +673,40 @@
                 <div class="stat-card"><div class="stat-value">${formatDuration(s.total_duration_ms || 0)}</div><div class="stat-label">累计使用时长</div></div>
                 <div class="stat-card"><div class="stat-value">${s.total_devices || 0}</div><div class="stat-label">累计设备数</div></div>
             `;
+
+            const sourceStats = s.source_stats || [];
+            const todaySourceStats = s.today_source_stats || [];
+            if (sourceStats.length === 0) {
+                document.getElementById('usage-source-section').innerHTML = '';
+                return;
+            }
+            const todayMap = {};
+            todaySourceStats.forEach(r => { todayMap[r.source] = r; });
+
+            document.getElementById('usage-source-section').innerHTML = `
+                <div class="section-title" style="margin-top:16px">来源分布</div>
+                <table>
+                    <thead><tr>
+                        <th>来源</th>
+                        <th>今日设备</th><th>今日打开</th><th>今日时长</th>
+                        <th>累计设备</th><th>累计打开</th><th>累计时长</th>
+                    </tr></thead>
+                    <tbody>
+                        ${sourceStats.map(r => {
+                            const t = todayMap[r.source] || {};
+                            return `<tr>
+                                <td><span class="badge badge-info">${r.source}</span></td>
+                                <td>${t.devices || 0}</td>
+                                <td>${t.opens || 0}</td>
+                                <td>${formatDuration(t.duration_ms || 0)}</td>
+                                <td>${r.devices}</td>
+                                <td>${r.opens}</td>
+                                <td>${formatDuration(r.duration_ms)}</td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
         }
 
         function renderUsageChart(dailyStats) {
@@ -512,7 +737,7 @@
         function renderUsage(data) {
             const tbody = document.getElementById('usage-table');
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="empty">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" class="empty">暂无数据</td></tr>';
                 return;
             }
             tbody.innerHTML = data.map(item => `
@@ -524,6 +749,10 @@
                     <td>${item.date || ''}</td>
                     <td>${item.open_count || 0}</td>
                     <td>${formatDuration(item.duration_ms || 0)}</td>
+                    <td>${item.source || '-'}</td>
+                    <td>${item.phone_model || '-'}</td>
+                    <td>${item.os_version || '-'}</td>
+                    <td>${item.network_type || '-'}</td>
                     <td><span class="badge badge-info">${item.version || ''}</span></td>
                     <td>${item.pkg || ''}</td>
                 </tr>

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.exceptions  import RequestValidationError
 from fastapi.responses  import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -7,10 +7,11 @@ import os
 import uuid
 import json
 import time
+import shutil
 import urllib.request
 import urllib.parse
 
-from request import RequestItem, AkskRequestItem, AppUsageItem
+from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem
 from db import *
 from typing import List
 
@@ -28,9 +29,23 @@ logger.setLevel(logging.ERROR)
 
 app = FastAPI()
 
+# ===== 静态文件 =====
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+FEEDBACK_UPLOAD_DIR = os.path.join(STATIC_DIR, "feedback")
+os.makedirs(FEEDBACK_UPLOAD_DIR, exist_ok=True)
+# 将 static/ 目录暴露为 /static/ 静态资源
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# 单个文件大小上限（字节）：图片 10MB，视频 50MB
+MAX_IMAGE_SIZE = 10 * 1024 * 1024
+MAX_VIDEO_SIZE = 50 * 1024 * 1024
+ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
+ALLOWED_VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".3gp", ".webm", ".mkv"}
+
 # 初始化数据库表
 init_app_usage_table()
 init_qr_session_table()
+init_feedback_table()
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -168,6 +183,69 @@ def list_usage():
 def usage_summary():
     result = get_app_usage_summary()
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+# ===== 意见反馈 API =====
+@app.post("/htz-api-pyservice/api/v1/feedback/add")
+def feedback_add(item: FeedbackItem):
+    print(f"feedback_add: {item}")
+    try:
+        save_feedback(item)
+    except Exception as e:
+        print(f"feedback_add error: {e}")
+        return JSONResponse({"code": "500", "msg": str(e), "data": None})
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.get("/htz-api-pyservice/api/v1/feedback/list")
+def feedback_list():
+    result = get_all_feedback()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.post("/htz-api-pyservice/api/v1/feedback/update")
+def feedback_update(item: FeedbackItem):
+    print(f"feedback_update: {item}")
+    update_feedback(item)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/feedback/delete")
+def feedback_delete(id: int):
+    print(f"feedback_delete id: {id}")
+    delete_feedback(id)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/feedback/upload")
+async def feedback_upload(file: UploadFile = File(...), type: str = Form("image")):
+    """上传反馈附件（图片/视频），返回可访问 URL"""
+    try:
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if type == "video":
+            allowed = ALLOWED_VIDEO_EXTS
+            max_size = MAX_VIDEO_SIZE
+        else:
+            allowed = ALLOWED_IMAGE_EXTS
+            max_size = MAX_IMAGE_SIZE
+        if ext not in allowed:
+            return JSONResponse({"code": "400", "msg": f"unsupported file ext: {ext}", "data": None})
+
+        new_name = f"{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
+        dst_path = os.path.join(FEEDBACK_UPLOAD_DIR, new_name)
+        size = 0
+        with open(dst_path, "wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > max_size:
+                    out.close()
+                    os.remove(dst_path)
+                    return JSONResponse({"code": "413", "msg": "file too large", "data": None})
+                out.write(chunk)
+        url = f"/static/feedback/{new_name}"
+        print(f"feedback_upload saved {dst_path} ({size} bytes) -> {url}")
+        return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"url": url, "size": size}})
+    except Exception as e:
+        print(f"feedback_upload error: {e}")
+        return JSONResponse({"code": "500", "msg": str(e), "data": None})
 
 # ===== 微信扫码登录 =====
 

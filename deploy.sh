@@ -1,6 +1,5 @@
 #!/bin/bash
-
-SERVER="root@121.36.173.141"
+SERVER="root@39.105.174.143"
 REMOTE_PATH="/root/htz-api-server-python"
 LOCAL_PATH="$(cd "$(dirname "$0")" && pwd)"
 
