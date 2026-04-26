@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import threading
+import uuid
 from contextlib import contextmanager
 from request import *
 from datetime import datetime
@@ -263,6 +264,102 @@ def update_feedback(item: FeedbackItem):
 def delete_feedback(id: int):
     with get_cursor() as cursor:
         cursor.execute("DELETE FROM feedback WHERE id=?", (id,))
+
+
+# ===== 系统通知 =====
+
+def _now_millis():
+    return str(int(datetime.now().timestamp() * 1000))
+
+
+def init_notification_table():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_notification (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                msg TEXT NOT NULL,
+                status TEXT DEFAULT 'published',
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_notification_read (
+                user_id TEXT NOT NULL,
+                notification_id TEXT NOT NULL,
+                read_at TEXT,
+                PRIMARY KEY (user_id, notification_id)
+            )
+        """)
+
+
+def save_notification(item: NotificationItem):
+    now = _now_millis()
+    notification_id = item.id or uuid.uuid4().hex
+    with get_cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO system_notification (id, title, msg, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title,
+                msg = excluded.msg,
+                status = excluded.status,
+                updated_at = excluded.updated_at
+        """, (notification_id, item.title, item.msg, item.status or "published", now, now))
+    return notification_id
+
+
+def get_all_notifications():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            SELECT id, title, msg, status, created_at, updated_at
+            FROM system_notification
+            ORDER BY CAST(created_at AS INTEGER) DESC
+            LIMIT 1000
+        """)
+        return _rows_to_list(cursor.fetchall())
+
+
+def delete_notification(id: str):
+    with get_cursor() as cursor:
+        cursor.execute("DELETE FROM user_notification_read WHERE notification_id=?", (id,))
+        cursor.execute("DELETE FROM system_notification WHERE id=?", (id,))
+
+
+def get_user_notifications(user_id: str, page_index: int = 0, page_size: int = 500):
+    page_index = max(page_index or 0, 0)
+    page_size = min(max(page_size or 500, 1), 500)
+    offset = page_index * page_size
+    with get_cursor() as cursor:
+        cursor.execute("""
+            SELECT n.id, n.title, n.msg, n.created_at,
+                   CASE WHEN r.notification_id IS NULL THEN 0 ELSE 1 END AS is_read
+            FROM system_notification n
+            LEFT JOIN user_notification_read r
+                ON r.notification_id = n.id AND r.user_id = ?
+            WHERE n.status = 'published'
+            ORDER BY CAST(n.created_at AS INTEGER) DESC
+            LIMIT ? OFFSET ?
+        """, (user_id or "", page_size, offset))
+        rows = _rows_to_list(cursor.fetchall())
+    for row in rows:
+        row["is_read"] = bool(row.get("is_read"))
+    return rows
+
+
+def mark_user_notifications_read(user_id: str, notification_ids: list):
+    if not user_id or not notification_ids:
+        return 0
+    now = _now_millis()
+    unique_ids = list(dict.fromkeys([str(item) for item in notification_ids if item]))
+    with get_cursor() as cursor:
+        cursor.executemany("""
+            INSERT INTO user_notification_read (user_id, notification_id, read_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, notification_id) DO UPDATE SET read_at=excluded.read_at
+        """, [(user_id, notification_id, now) for notification_id in unique_ids])
+    return len(unique_ids)
 
 
 # ===== 用量统计初始化 =====

@@ -76,6 +76,7 @@
             <button class="tab" onclick="switchTab('users')">用户信息</button>
             <button class="tab" onclick="switchTab('logs')">日志信息</button>
             <button class="tab" onclick="switchTab('feedback')">意见反馈</button>
+            <button class="tab" onclick="switchTab('notification')">系统通知</button>
             <button class="tab" onclick="switchTab('aksk')">AK/SK 管理</button>
         </div>
         <div class="content">
@@ -108,6 +109,27 @@
                         </tr>
                     </thead>
                     <tbody id="feedback-table"></tbody>
+                </table>
+            </div>
+            <!-- 系统通知面板 -->
+            <div id="notification-panel" class="panel">
+                <div class="toolbar">
+                    <button class="btn btn-primary" onclick="showAddNotificationModal()">+ 发布通知</button>
+                    <input type="text" class="search-box" placeholder="搜索通知标题/内容..." id="notification-search" onkeyup="filterNotifications()">
+                    <button class="btn btn-success refresh-btn" onclick="loadNotifications()">刷新</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>标题</th>
+                            <th>内容</th>
+                            <th>状态</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="notification-table"></tbody>
                 </table>
             </div>
             <!-- AK/SK 管理面板 -->
@@ -289,6 +311,35 @@
         </div>
     </div>
 
+    <!-- 系统通知编辑弹窗 -->
+    <div id="notification-modal" class="modal">
+        <div class="modal-content" style="width: 640px;">
+            <div class="modal-header" id="notification-modal-title">发布通知</div>
+            <form id="notification-form">
+                <input type="hidden" id="notification-id">
+                <div class="form-group">
+                    <label>标题 *</label>
+                    <input type="text" id="notification-title" required>
+                </div>
+                <div class="form-group">
+                    <label>内容 *</label>
+                    <textarea id="notification-msg" rows="8" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>状态</label>
+                    <select id="notification-status" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:4px;font-size:14px;">
+                        <option value="published">已发布</option>
+                        <option value="draft">草稿</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeNotificationModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 日志详情弹窗 -->
     <div id="log-modal" class="modal">
         <div class="modal-content" style="width: 700px;">
@@ -302,7 +353,7 @@
 
     <script>
         const API_BASE = '/htz-api-pyservice/api/v1';
-        let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [];
+        let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [];
 
         // 切换标签
         function switchTab(tab) {
@@ -315,6 +366,7 @@
             else if (tab === 'logs') loadLogs();
             else if (tab === 'usage') loadUsage();
             else if (tab === 'feedback') loadFeedback();
+            else if (tab === 'notification') loadNotifications();
         }
 
         // ===== 意见反馈 =====
@@ -441,6 +493,108 @@
             if (!confirm('确定要删除这条反馈吗？')) return;
             await fetch(`${API_BASE}/feedback/delete?id=${id}`, { method: 'POST' });
             loadFeedback();
+        }
+
+        // ===== 系统通知 =====
+        function escapeHtml(value) {
+            return String(value || '').replace(/[&<>"']/g, c => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[c]));
+        }
+
+        function formatNotificationTime(value) {
+            const ts = Number(value || 0);
+            if (!ts) return '';
+            return new Date(ts).toLocaleString('zh-CN', { hour12: false });
+        }
+
+        async function loadNotifications() {
+            const res = await fetch(`${API_BASE}/notification/list`);
+            const json = await res.json();
+            notificationsData = json.data || [];
+            renderNotifications(notificationsData);
+        }
+
+        function renderNotifications(data) {
+            const tbody = document.getElementById('notification-table');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty">暂无系统通知</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td><span class="text-truncate" title="${escapeHtml(item.id)}">${escapeHtml(item.id)}</span></td>
+                    <td>${escapeHtml(item.title)}</td>
+                    <td><span class="text-truncate" title="${escapeHtml(item.msg)}">${escapeHtml(item.msg)}</span></td>
+                    <td>${item.status === 'published' ? '<span class="badge" style="background:#e8f5e9;color:#388e3c">已发布</span>' : '<span class="badge" style="background:#fff3e0;color:#f57c00">草稿</span>'}</td>
+                    <td>${formatNotificationTime(item.created_at)}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="editNotification('${item.id}')">编辑</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteNotification('${item.id}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterNotifications() {
+            const keyword = document.getElementById('notification-search').value.toLowerCase();
+            const filtered = notificationsData.filter(item =>
+                (item.title || '').toLowerCase().includes(keyword) ||
+                (item.msg || '').toLowerCase().includes(keyword)
+            );
+            renderNotifications(filtered);
+        }
+
+        function showAddNotificationModal() {
+            document.getElementById('notification-modal-title').textContent = '发布通知';
+            document.getElementById('notification-form').reset();
+            document.getElementById('notification-id').value = '';
+            document.getElementById('notification-status').value = 'published';
+            document.getElementById('notification-modal').classList.add('show');
+        }
+
+        function editNotification(id) {
+            const item = notificationsData.find(n => n.id === id);
+            if (!item) return;
+            document.getElementById('notification-modal-title').textContent = '编辑通知';
+            document.getElementById('notification-id').value = item.id;
+            document.getElementById('notification-title').value = item.title || '';
+            document.getElementById('notification-msg').value = item.msg || '';
+            document.getElementById('notification-status').value = item.status || 'published';
+            document.getElementById('notification-modal').classList.add('show');
+        }
+
+        function closeNotificationModal() {
+            document.getElementById('notification-modal').classList.remove('show');
+        }
+
+        document.getElementById('notification-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('notification-id').value;
+            const data = {
+                title: document.getElementById('notification-title').value,
+                msg: document.getElementById('notification-msg').value,
+                status: document.getElementById('notification-status').value
+            };
+            if (id) data.id = id;
+            const url = id ? `${API_BASE}/notification/update` : `${API_BASE}/notification/add`;
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            closeNotificationModal();
+            loadNotifications();
+        });
+
+        async function deleteNotification(id) {
+            if (!confirm('确定要删除这条系统通知吗？')) return;
+            await fetch(`${API_BASE}/notification/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
+            loadNotifications();
         }
 
         // ===== AK/SK =====

@@ -49,6 +49,16 @@ class FeedbackItem(BaseModel):
     # 单个视频 URL，例如 "/static/feedback/xxx.mp4"
     video_url: str = ""
 
+class NotificationItem(BaseModel):
+    id: str = None
+    title: str
+    msg: str
+    status: str = "published"
+
+class NotificationQueryItem(BaseModel):
+    page_index: int = 0
+    page_size: int = 500
+
 class UserInfoItem(BaseModel):
     unionid: str
     nickname: str

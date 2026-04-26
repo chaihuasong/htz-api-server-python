@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, Body
 from fastapi.exceptions  import RequestValidationError
 from fastapi.responses  import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -46,6 +46,7 @@ ALLOWED_VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".3gp", ".webm", ".mkv"}
 init_app_usage_table()
 init_qr_session_table()
 init_feedback_table()
+init_notification_table()
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -211,6 +212,40 @@ def feedback_delete(id: int):
     print(f"feedback_delete id: {id}")
     delete_feedback(id)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+# ===== 系统通知 API =====
+@app.get("/htz-api-pyservice/api/v1/notification/list")
+def notification_list():
+    result = get_all_notifications()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.post("/htz-api-pyservice/api/v1/notification/add")
+def notification_add(item: NotificationItem):
+    print(f"notification_add: {item}")
+    notification_id = save_notification(item)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"id": notification_id}})
+
+@app.post("/htz-api-pyservice/api/v1/notification/update")
+def notification_update(item: NotificationItem):
+    print(f"notification_update: {item}")
+    notification_id = save_notification(item)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"id": notification_id}})
+
+@app.post("/htz-api-pyservice/api/v1/notification/delete")
+def notification_delete(id: str):
+    print(f"notification_delete id: {id}")
+    delete_notification(id)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/get/notifications")
+def get_notifications(request_item: NotificationQueryItem, token: str = Header(default="")):
+    result = get_user_notifications(token, request_item.page_index, request_item.page_size)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.post("/htz-api-pyservice/api/v1/put/user/notifications")
+def put_user_notifications(notification_ids: List[str] = Body(default=[]), token: str = Header(default="")):
+    count = mark_user_notifications_read(token, notification_ids)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"count": count}})
 
 @app.post("/htz-api-pyservice/api/v1/feedback/upload")
 async def feedback_upload(file: UploadFile = File(...), type: str = Form("image")):
