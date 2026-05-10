@@ -11,7 +11,7 @@ import shutil
 import urllib.request
 import urllib.parse
 
-from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem
+from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem
 from db import *
 from typing import List
 
@@ -102,6 +102,24 @@ def save_userinfo(request_item: UserInfoItem):
 def update_userinfo(request_item: UserInfoItem):
     print(f"update_userinfo unionid:{request_item}")
     update_user_by_unionid(request_item)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/userinfo/telephone/update")
+def update_user_telephone(request_item: UserTelephoneUpdateItem):
+    unionid = request_item.unionid.strip()
+    telephone = request_item.telephone.strip()
+    if not unionid:
+        return JSONResponse({"code": "400", "msg": "unionid is required", "data": None})
+    if not telephone:
+        return JSONResponse({"code": "400", "msg": "telephone is required", "data": None})
+
+    existing_user = select_user_dict_by_telephone(telephone)
+    if existing_user and existing_user.get("unionid") != unionid:
+        return JSONResponse({"code": "409", "msg": "telephone already exists", "data": None})
+
+    updated_count = update_user_telephone_by_unionid(unionid, telephone)
+    if updated_count == 0:
+        return JSONResponse({"code": "404", "msg": "user not found", "data": None})
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.get("/htz-api-pyservice/api/v1/userinfo/getbyphone")

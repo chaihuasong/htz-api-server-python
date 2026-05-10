@@ -284,6 +284,28 @@
         </div>
     </div>
 
+    <!-- 编辑用户手机号弹窗 -->
+    <div id="user-telephone-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">编辑用户电话</div>
+            <form id="user-telephone-form">
+                <input type="hidden" id="user-telephone-unionid">
+                <div class="form-group">
+                    <label>UnionID</label>
+                    <input type="text" id="user-telephone-unionid-display" disabled>
+                </div>
+                <div class="form-group">
+                    <label>电话 *</label>
+                    <input type="text" id="user-telephone-value" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeUserTelephoneModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 反馈详情/回复弹窗 -->
     <div id="feedback-modal" class="modal">
         <div class="modal-content" style="width: 700px;">
@@ -702,6 +724,7 @@
                     <td>${item.create_time || ''}</td>
                     <td>
                         <button class="btn btn-primary btn-sm" onclick="showUserDetail(${item.id})">详情</button>
+                        <button class="btn btn-success btn-sm" onclick="showEditUserTelephone(${item.id})">编辑电话</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteUser('${item.unionid}')">删除</button>
                     </td>
                 </tr>
@@ -732,6 +755,39 @@
         function closeUserModal() {
             document.getElementById('user-modal').classList.remove('show');
         }
+
+        function showEditUserTelephone(id) {
+            const item = usersData.find(u => u.id === id);
+            if (!item) return;
+            document.getElementById('user-telephone-unionid').value = item.unionid || '';
+            document.getElementById('user-telephone-unionid-display').value = item.unionid || '';
+            document.getElementById('user-telephone-value').value = item.telephone || '';
+            document.getElementById('user-telephone-modal').classList.add('show');
+        }
+
+        function closeUserTelephoneModal() {
+            document.getElementById('user-telephone-modal').classList.remove('show');
+        }
+
+        document.getElementById('user-telephone-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                unionid: document.getElementById('user-telephone-unionid').value,
+                telephone: document.getElementById('user-telephone-value').value.trim()
+            };
+            const res = await fetch(`${API_BASE}/userinfo/telephone/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const json = await res.json();
+            if (json.code !== '0') {
+                alert(json.msg || '保存失败');
+                return;
+            }
+            closeUserTelephoneModal();
+            loadUsers();
+        });
 
         async function deleteUser(unionid) {
             if (!confirm('确定要删除这个用户吗？')) return;

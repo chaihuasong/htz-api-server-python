@@ -59,6 +59,10 @@ class NotificationQueryItem(BaseModel):
     page_index: int = 0
     page_size: int = 500
 
+class UserTelephoneUpdateItem(BaseModel):
+    unionid: str
+    telephone: str
+
 class UserInfoItem(BaseModel):
     unionid: str
     nickname: str

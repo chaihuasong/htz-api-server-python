@@ -135,6 +135,20 @@ def update_user_by_unionid(user: UserInfoItem):
               user.province, user.city, user.language, user.group_id, user.telephone,
               user.pwd, user.sign, user.note, formatted_time, user.unionid))
 
+def update_user_telephone_by_unionid(unionid: str, telephone: str):
+    formatted_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            UPDATE user_info SET telephone=?, last_update_time=?
+            WHERE unionid=?
+        """, (telephone, formatted_time, unionid))
+        return cursor.rowcount
+
+def select_user_dict_by_telephone(telephone: str):
+    with get_cursor() as cursor:
+        cursor.execute("SELECT * FROM user_info WHERE telephone=?", (telephone,))
+        return _row_to_dict(cursor.fetchone())
+
 def select_user_by_telephone(telephone: str):
     with get_cursor() as cursor:
         cursor.execute("SELECT * FROM user_info WHERE telephone=?", (telephone,))
