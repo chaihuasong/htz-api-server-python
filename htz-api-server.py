@@ -89,8 +89,8 @@ def getaksk(appName: str):
 @app.post("/htz-api-pyservice/api/v1/userinfo/add")
 def save_userinfo(request_item: UserInfoItem):
     print(f"save_userinfo unionid:{request_item}")
-    existing_user = select_user_by_unionid(request_item.unionid)
-    if existing_user is not None:
+    existing_user = select_user_dict_by_unionid(request_item.unionid)
+    if existing_user:
         print(f"Updating user with unionid: {request_item.unionid}")
         update_user_by_unionid(request_item)
     else:

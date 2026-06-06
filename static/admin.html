@@ -203,11 +203,14 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>UnionID</th>
+                            <th>头像</th>
                             <th>昵称</th>
-                            <th>OpenID</th>
+                            <th>性别</th>
+                            <th>地区</th>
                             <th>电话</th>
+                            <th>备注</th>
                             <th>创建时间</th>
+                            <th>更新时间</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -748,27 +751,41 @@
             renderUsers(usersData);
         }
 
+        function sexLabel(s) {
+            if (s === '1' || s === 1) return '<span class="badge" style="background:#e3f2fd;color:#1976d2">男</span>';
+            if (s === '2' || s === 2) return '<span class="badge" style="background:#fce4ec;color:#e91e63">女</span>';
+            return '<span class="badge" style="background:#f5f5f5;color:#999">未知</span>';
+        }
+
         function renderUsers(data) {
             const tbody = document.getElementById('users-table');
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="empty">暂无数据</td></tr>';
                 return;
             }
-            tbody.innerHTML = data.map(item => `
+            tbody.innerHTML = data.map(item => {
+                const region = [item.country, item.province, item.city].filter(Boolean).join(' ');
+                const avatarHtml = item.headimgurl
+                    ? `<img src="${item.headimgurl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`
+                    : '-';
+                return `
                 <tr>
                     <td>${item.id}</td>
-                    <td><span class="text-truncate" title="${item.unionid || ''}">${item.unionid || ''}</span></td>
-                    <td>${item.nickname || ''}</td>
-                    <td><span class="text-truncate" title="${item.openid || ''}">${item.openid || ''}</span></td>
-                    <td>${item.telephone || ''}</td>
-                    <td>${item.create_time || ''}</td>
+                    <td>${avatarHtml}</td>
+                    <td>${item.nickname || '-'}</td>
+                    <td>${sexLabel(item.sex)}</td>
+                    <td>${region || '-'}</td>
+                    <td>${item.telephone || '-'}</td>
+                    <td><span class="text-truncate" title="${(item.note || '').replace(/"/g,'&quot;')}">${item.note || '-'}</span></td>
+                    <td>${item.create_time || '-'}</td>
+                    <td>${item.last_update_time || '-'}</td>
                     <td>
                         <button class="btn btn-primary btn-sm" onclick="showUserDetail(${item.id})">详情</button>
                         <button class="btn btn-success btn-sm" onclick="showEditUserTelephone(${item.id})">编辑电话</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteUser('${item.unionid}')">删除</button>
                     </td>
                 </tr>
-            `).join('');
+            `}).join('');
         }
 
         function filterUsers() {
