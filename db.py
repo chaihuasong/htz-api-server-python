@@ -104,7 +104,7 @@ def upsert_user_wechat(wechat_user_info: dict):
                 "",   # sign
                 "android",  # note
                 now, now
-            )))
+            ))
 
 
 def select_user_dict_by_unionid(unionid: str):
