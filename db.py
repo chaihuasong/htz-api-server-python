@@ -56,6 +56,63 @@ def save_log_info(request_item: RequestItem):
         """, (request_item.pkg, request_item.version, request_item.phone,
               request_item.type, request_item.info, request_item.time, request_item.user))
 
+def upsert_user_wechat(wechat_user_info: dict):
+    """微信扫码回调中直接写入/更新用户信息（upsert），避免 App 端崩溃导致数据丢失"""
+    unionid = wechat_user_info.get("unionid", "").strip()
+    if not unionid:
+        return
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    existing = select_user_dict_by_unionid(unionid)
+    with get_cursor() as cursor:
+        if existing:
+            cursor.execute("""
+                UPDATE user_info SET
+                    nickname=?, openid=?, sex=?, headimgurl=?, country=?,
+                    province=?, city=?, language=?, last_update_time=?
+                WHERE unionid=?
+            """, (
+                wechat_user_info.get("nickname", existing.get("nickname", "")),
+                wechat_user_info.get("openid", existing.get("openid", "")),
+                str(wechat_user_info.get("sex", existing.get("sex", ""))),
+                wechat_user_info.get("headimgurl", existing.get("headimgurl", "")),
+                wechat_user_info.get("country", existing.get("country", "")),
+                wechat_user_info.get("province", existing.get("province", "")),
+                wechat_user_info.get("city", existing.get("city", "")),
+                wechat_user_info.get("language", existing.get("language", "")),
+                now,
+                unionid
+            ))
+        else:
+            cursor.execute("""
+                INSERT INTO user_info (unionid, nickname, openid, sex, headimgurl,
+                    country, province, city, language, group_id, telephone, pwd, sign,
+                    note, create_time, last_update_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                unionid,
+                wechat_user_info.get("nickname", ""),
+                wechat_user_info.get("openid", ""),
+                str(wechat_user_info.get("sex", "")),
+                wechat_user_info.get("headimgurl", ""),
+                wechat_user_info.get("country", ""),
+                wechat_user_info.get("province", ""),
+                wechat_user_info.get("city", ""),
+                wechat_user_info.get("language", ""),
+                "",   # group_id
+                "",   # telephone
+                "",   # pwd
+                "",   # sign
+                "android",  # note
+                now, now
+            )))
+
+
+def select_user_dict_by_unionid(unionid: str):
+    with get_cursor() as cursor:
+        cursor.execute("SELECT * FROM user_info WHERE unionid=?", (unionid,))
+        return _row_to_dict(cursor.fetchone())
+
+
 def get_log_info(pkg: str):
     with get_cursor() as cursor:
         cursor.execute("SELECT * FROM log_info WHERE pkg=?", (pkg,))

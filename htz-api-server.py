@@ -410,6 +410,13 @@ def wx_callback(code: str = "", state: str = ""):
         user_info.setdefault("language", "")
         user_info.setdefault("privilege", [])
 
+        # 3.5. 直接写入/更新 user_info 表（upsert），避免 App 端崩溃导致用户数据丢失
+        try:
+            upsert_user_wechat(user_info)
+            print(f"wx_callback upsert_user_wechat done unionid={user_info.get('unionid')}")
+        except Exception as e:
+            print(f"wx_callback upsert_user_wechat error: {e}")
+
         # 4. 调主服务器 post/login/unionid，用完整 WeixinLoginResp 创建/更新用户并获取 token
         token = ""
         try:
@@ -453,6 +460,16 @@ margin:0;font-family:sans-serif;background:#f5f5f5;}
 
 
 # ===== 网页管理后台 =====
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin@1234"
+ADMIN_TOKEN = "htz_admin_token_2024"
+
+@app.post("/htz-api-pyservice/api/v1/admin/login")
+def admin_login(username: str = Body(...), password: str = Body(...)):
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"token": ADMIN_TOKEN}})
+    return JSONResponse({"code": "401", "msg": "用户名或密码错误", "data": None})
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page():
     html_path = os.path.join(os.path.dirname(__file__), "static", "admin.html")
