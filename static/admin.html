@@ -118,6 +118,7 @@
             <button class="tab" onclick="switchTab('feedback')">意见反馈</button>
             <button class="tab" onclick="switchTab('notification')">系统通知</button>
             <button class="tab" onclick="switchTab('aksk')">AK/SK 管理</button>
+            <button class="tab" onclick="switchTab('phonemodel')">机型映射</button>
         </div>
         <div class="content">
             <!-- 意见反馈面板 -->
@@ -238,6 +239,28 @@
                         </tr>
                     </thead>
                     <tbody id="logs-table"></tbody>
+                </table>
+            </div>
+            <!-- 机型映射面板 -->
+            <div id="phonemodel-panel" class="panel">
+                <div class="toolbar">
+                    <button class="btn btn-primary" onclick="showAddPhoneModelModal()">+ 新增映射</button>
+                    <input type="text" class="search-box" placeholder="搜索工程型号/营销型号..." id="phonemodel-search" onkeyup="filterPhoneModels()">
+                    <button class="btn btn-success refresh-btn" onclick="loadPhoneModels()">刷新</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>工程型号</th>
+                            <th>营销型号</th>
+                            <th>厂商</th>
+                            <th>备注</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="phonemodel-table"></tbody>
                 </table>
             </div>
             <!-- 用量统计面板 -->
@@ -417,9 +440,40 @@
         </div>
     </div>
 
+    <!-- 机型映射编辑弹窗 -->
+    <div id="phonemodel-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header" id="phonemodel-modal-title">新增机型映射</div>
+            <form id="phonemodel-form">
+                <input type="hidden" id="phonemodel-id">
+                <div class="form-group">
+                    <label>工程型号 *</label>
+                    <input type="text" id="phonemodel-engineering" placeholder="如: Xiaomi 24069RA21C" required>
+                    <div style="font-size:12px;color:#999;margin-top:4px">客户端上报的 phone_model 原始值</div>
+                </div>
+                <div class="form-group">
+                    <label>营销型号 *</label>
+                    <input type="text" id="phonemodel-marketing" placeholder="如: Redmi Turbo 3" required>
+                </div>
+                <div class="form-group">
+                    <label>厂商</label>
+                    <input type="text" id="phonemodel-manufacturer" placeholder="如: Xiaomi">
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <input type="text" id="phonemodel-remark" placeholder="可选备注信息">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closePhoneModelModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const API_BASE = '/htz-api-pyservice/api/v1';
-        let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [];
+        let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [], phonemodelData = [];
 
         // 切换标签
         function switchTab(tab) {
@@ -433,6 +487,7 @@
             else if (tab === 'usage') loadUsage();
             else if (tab === 'feedback') loadFeedback();
             else if (tab === 'notification') loadNotifications();
+            else if (tab === 'phonemodel') loadPhoneModels();
         }
 
         // ===== 意见反馈 =====
@@ -482,7 +537,7 @@
                     <td><span class="text-truncate" title="${(item.content || '').replace(/"/g,'&quot;')}">${item.content || ''}</span></td>
                     <td>${feedbackThumbsHtml(item)}</td>
                     <td>${item.version || '-'}</td>
-                    <td>${item.phone_model || '-'}</td>
+                    <td>${item.phone_model ? (item.phone_model + (item.marketing_model ? '<br><span style="font-size:12px;color:#1976d2">→ ' + item.marketing_model + '</span>' : '') + (item.engineering_model ? '<br><span style="font-size:11px;color:#999">' + item.engineering_model + '</span>' : '')) : '-'}</td>
                     <td>${statusLabel(item.status)}</td>
                     <td>${item.created_at || ''}</td>
                     <td>
@@ -500,7 +555,9 @@
                 const matchKey = (f.content || '').toLowerCase().includes(keyword) ||
                     (f.contact || '').toLowerCase().includes(keyword) ||
                     (f.nickname || '').toLowerCase().includes(keyword) ||
-                    (f.user_nickname || '').toLowerCase().includes(keyword);
+                    (f.user_nickname || '').toLowerCase().includes(keyword) ||
+                    (f.phone_model || '').toLowerCase().includes(keyword) ||
+                    (f.marketing_model || '').toLowerCase().includes(keyword);
                 const matchStatus = !status || f.status === status;
                 return matchKey && matchStatus;
             });
@@ -511,7 +568,7 @@
             const item = feedbackData.find(f => f.id === id);
             if (!item) return;
             const fields = ['id','user_id','user_nickname','nickname','contact','category','content','reply','status',
-                'pkg','version','phone_model','os_version','device_id','created_at','updated_at'];
+                'pkg','version','phone_model','engineering_model','marketing_model','os_version','device_id','created_at','updated_at'];
             const imgs = parseImages(item);
             const mediaHtml = (imgs.length || item.video_url) ? `
                 <div style="margin-bottom:12px">
@@ -742,6 +799,102 @@
             if (!confirm('确定要删除这条记录吗？')) return;
             await fetch(`${API_BASE}/aksk/delete?id=${id}`, { method: 'POST' });
             loadAksk();
+        }
+
+        // ===== 机型映射 =====
+        async function loadPhoneModels() {
+            const res = await fetch(`${API_BASE}/phone-model-mapping/list`);
+            const json = await res.json();
+            phonemodelData = json.data || [];
+            renderPhoneModels(phonemodelData);
+        }
+
+        function renderPhoneModels(data) {
+            const tbody = document.getElementById('phonemodel-table');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无映射数据 — 在反馈或用量统计中看到新机型后，可在此添加映射关系</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.id}</td>
+                    <td><span class="text-truncate" title="${(item.engineering_model || '').replace(/"/g,'&quot;')}">${item.engineering_model || '-'}</span></td>
+                    <td><span class="badge" style="background:#e8f5e9;color:#388e3c">${item.marketing_model || '-'}</span></td>
+                    <td>${item.manufacturer || '-'}</td>
+                    <td>${item.remark || '-'}</td>
+                    <td>${item.created_at || '-'}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="editPhoneModel(${item.id})">编辑</button>
+                        <button class="btn btn-danger btn-sm" onclick="deletePhoneModel(${item.id})">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterPhoneModels() {
+            const keyword = document.getElementById('phonemodel-search').value.toLowerCase();
+            let filtered = phonemodelData;
+            if (keyword) {
+                filtered = phonemodelData.filter(m =>
+                    (m.engineering_model || '').toLowerCase().includes(keyword) ||
+                    (m.marketing_model || '').toLowerCase().includes(keyword) ||
+                    (m.manufacturer || '').toLowerCase().includes(keyword) ||
+                    (m.remark || '').toLowerCase().includes(keyword)
+                );
+            }
+            renderPhoneModels(filtered);
+        }
+
+        function showAddPhoneModelModal() {
+            document.getElementById('phonemodel-modal-title').textContent = '新增机型映射';
+            document.getElementById('phonemodel-form').reset();
+            document.getElementById('phonemodel-id').value = '';
+            document.getElementById('phonemodel-modal').classList.add('show');
+        }
+
+        function editPhoneModel(id) {
+            const item = phonemodelData.find(m => m.id === id);
+            if (!item) return;
+            document.getElementById('phonemodel-modal-title').textContent = '编辑机型映射';
+            document.getElementById('phonemodel-id').value = item.id;
+            document.getElementById('phonemodel-engineering').value = item.engineering_model || '';
+            document.getElementById('phonemodel-marketing').value = item.marketing_model || '';
+            document.getElementById('phonemodel-manufacturer').value = item.manufacturer || '';
+            document.getElementById('phonemodel-remark').value = item.remark || '';
+            document.getElementById('phonemodel-modal').classList.add('show');
+        }
+
+        function closePhoneModelModal() {
+            document.getElementById('phonemodel-modal').classList.remove('show');
+        }
+
+        document.getElementById('phonemodel-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('phonemodel-id').value;
+            const data = {
+                engineering_model: document.getElementById('phonemodel-engineering').value.trim(),
+                marketing_model: document.getElementById('phonemodel-marketing').value.trim(),
+                manufacturer: document.getElementById('phonemodel-manufacturer').value.trim(),
+                remark: document.getElementById('phonemodel-remark').value.trim()
+            };
+            if (id) data.id = parseInt(id);
+            const url = id ? `${API_BASE}/phone-model-mapping/update` : `${API_BASE}/phone-model-mapping/add`;
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            closePhoneModelModal();
+            loadPhoneModels();
+            // 同步刷新反馈和用量列表，让它们同时带出营销型号
+            if (document.getElementById('feedback-panel').classList.contains('active')) loadFeedback();
+            if (document.getElementById('usage-panel').classList.contains('active')) loadUsage();
+        });
+
+        async function deletePhoneModel(id) {
+            if (!confirm('确定要删除这条映射吗？')) return;
+            await fetch(`${API_BASE}/phone-model-mapping/delete?id=${id}`, { method: 'POST' });
+            loadPhoneModels();
         }
 
         // ===== 用户 =====
@@ -1019,7 +1172,7 @@
                     <td>${item.open_count || 0}</td>
                     <td>${formatDuration(item.duration_ms || 0)}</td>
                     <td>${item.source || '-'}</td>
-                    <td>${item.phone_model || '-'}</td>
+                    <td>${item.phone_model ? (item.phone_model + (item.marketing_model ? '<br><span style="font-size:12px;color:#1976d2">→ ' + item.marketing_model + '</span>' : '') + (item.engineering_model ? '<br><span style="font-size:11px;color:#999">' + item.engineering_model + '</span>' : '')) : '-'}</td>
                     <td>${item.os_version || '-'}</td>
                     <td>${item.network_type || '-'}</td>
                     <td><span class="badge badge-info">${item.version || ''}</span></td>
@@ -1035,7 +1188,10 @@
                 (u.user_id || '').toLowerCase().includes(keyword) ||
                 (u.nickname || '').toLowerCase().includes(keyword) ||
                 (u.date || '').toLowerCase().includes(keyword) ||
-                (u.version || '').toLowerCase().includes(keyword)
+                (u.version || '').toLowerCase().includes(keyword) ||
+                (u.phone_model || '').toLowerCase().includes(keyword) ||
+                (u.marketing_model || '').toLowerCase().includes(keyword) ||
+                (u.engineering_model || '').toLowerCase().includes(keyword)
             );
             renderUsage(filtered);
         }

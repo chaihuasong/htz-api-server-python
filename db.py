@@ -291,7 +291,7 @@ def init_feedback_table():
             )
         """)
         # 兼容旧表，补充新列
-        for col, definition in [("image_urls", "TEXT DEFAULT ''"), ("video_url", "TEXT DEFAULT ''")]:
+        for col, definition in [("image_urls", "TEXT DEFAULT ''"), ("video_url", "TEXT DEFAULT ''"), ("engineering_model", "TEXT DEFAULT ''")]:
             try:
                 cursor.execute(f"ALTER TABLE feedback ADD COLUMN {col} {definition}")
             except Exception:
@@ -303,11 +303,11 @@ def save_feedback(item: FeedbackItem):
     with get_cursor() as cursor:
         cursor.execute("""
             INSERT INTO feedback (user_id, nickname, contact, content, category,
-                pkg, version, phone_model, os_version, device_id, status, reply,
+                pkg, version, phone_model, engineering_model, os_version, device_id, status, reply,
                 image_urls, video_url, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (item.user_id, item.nickname, item.contact, item.content, item.category,
-              item.pkg, item.version, item.phone_model, item.os_version, item.device_id,
+              item.pkg, item.version, item.phone_model, item.engineering_model, item.os_version, item.device_id,
               item.status or "pending", item.reply, item.image_urls, item.video_url, now, now))
 
 
@@ -454,7 +454,7 @@ def init_app_usage_table():
             )
         """)
         # 兼容旧表，补充新列
-        for col, definition in [("phone_model", "TEXT DEFAULT ''"), ("os_version", "TEXT DEFAULT ''"), ("network_type", "TEXT DEFAULT ''"), ("source", "TEXT DEFAULT ''")]:
+        for col, definition in [("phone_model", "TEXT DEFAULT ''"), ("os_version", "TEXT DEFAULT ''"), ("network_type", "TEXT DEFAULT ''"), ("source", "TEXT DEFAULT ''"), ("engineering_model", "TEXT DEFAULT ''")]:
             try:
                 cursor.execute(f"ALTER TABLE app_usage ADD COLUMN {col} {definition}")
             except Exception:
@@ -464,8 +464,8 @@ def save_app_usage(item: AppUsageItem):
     formatted_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with get_cursor() as cursor:
         cursor.execute("""
-            INSERT INTO app_usage (device_id, user_id, date, open_count, duration_ms, version, pkg, phone_model, os_version, network_type, source, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO app_usage (device_id, user_id, date, open_count, duration_ms, version, pkg, phone_model, engineering_model, os_version, network_type, source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(device_id, date) DO UPDATE SET
                 open_count = MAX(app_usage.open_count, excluded.open_count),
                 duration_ms = MAX(app_usage.duration_ms, excluded.duration_ms),
@@ -473,12 +473,13 @@ def save_app_usage(item: AppUsageItem):
                 version = CASE WHEN excluded.version != '' THEN excluded.version ELSE app_usage.version END,
                 pkg = CASE WHEN excluded.pkg != '' THEN excluded.pkg ELSE app_usage.pkg END,
                 phone_model = CASE WHEN excluded.phone_model != '' THEN excluded.phone_model ELSE app_usage.phone_model END,
+                engineering_model = CASE WHEN excluded.engineering_model != '' THEN excluded.engineering_model ELSE app_usage.engineering_model END,
                 os_version = CASE WHEN excluded.os_version != '' THEN excluded.os_version ELSE app_usage.os_version END,
                 network_type = CASE WHEN excluded.network_type != '' THEN excluded.network_type ELSE app_usage.network_type END,
                 source = CASE WHEN excluded.source != '' THEN excluded.source ELSE app_usage.source END,
                 created_at = excluded.created_at
         """, (item.device_id, item.user_id, item.date, item.open_count,
-              item.duration_ms, item.version, item.pkg, item.phone_model, item.os_version, item.network_type, item.source, formatted_time))
+              item.duration_ms, item.version, item.pkg, item.phone_model, item.engineering_model, item.os_version, item.network_type, item.source, formatted_time))
 
 def save_app_usage_batch(items: list):
     for item in items:
@@ -497,6 +498,82 @@ def get_all_app_usage():
             LIMIT 1000
         """)
         return _rows_to_list(cursor.fetchall())
+
+# ===== 手机型号映射操作 =====
+
+def init_phone_model_mapping_table():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS phone_model_mapping (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                engineering_model TEXT NOT NULL UNIQUE,
+                marketing_model TEXT NOT NULL,
+                manufacturer TEXT DEFAULT '',
+                remark TEXT DEFAULT '',
+                created_at TEXT
+            )
+        """)
+
+def get_all_phone_model_mappings():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            SELECT * FROM phone_model_mapping
+            ORDER BY id DESC
+        """)
+        return _rows_to_list(cursor.fetchall())
+
+def get_phone_model_mapping(engineering_model: str):
+    with get_cursor() as cursor:
+        cursor.execute("SELECT * FROM phone_model_mapping WHERE engineering_model=?", (engineering_model,))
+        return _row_to_dict(cursor.fetchone())
+
+def add_phone_model_mapping(item) -> dict:
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO phone_model_mapping (engineering_model, marketing_model, manufacturer, remark, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (item.engineering_model.strip(), item.marketing_model.strip(), item.manufacturer, item.remark, now))
+        return {"id": cursor.lastrowid}
+
+def update_phone_model_mapping(item):
+    with get_cursor() as cursor:
+        cursor.execute("""
+            UPDATE phone_model_mapping SET
+                engineering_model=?, marketing_model=?, manufacturer=?, remark=?
+            WHERE id=?
+        """, (item.engineering_model.strip(), item.marketing_model.strip(), item.manufacturer, item.remark, item.id))
+
+def delete_phone_model_mapping(id: int):
+    with get_cursor() as cursor:
+        cursor.execute("DELETE FROM phone_model_mapping WHERE id=?", (id,))
+
+def enrich_phone_model(phone_model: str, engineering_model: str = "", mappings: dict = None) -> str:
+    """根据 phone_model 或 engineering_model 查找对应的营销型号，没找到返回 None"""
+    if not phone_model and not engineering_model:
+        return None
+    if mappings is None:
+        all_mappings = get_all_phone_model_mappings()
+        mappings = {m["engineering_model"]: m["marketing_model"] for m in all_mappings}
+    # 优先匹配 phone_model
+    result = mappings.get(phone_model, None)
+    if result:
+        return result
+    # 再匹配 engineering_model
+    if engineering_model:
+        result = mappings.get(engineering_model, None)
+    return result
+
+def enrich_list_with_marketing_model(items: list, phone_model_key: str = "phone_model", engineering_model_key: str = "engineering_model"):
+    """为列表中的每个 item 添加 marketing_model 字段"""
+    all_mappings = get_all_phone_model_mappings()
+    mappings = {m["engineering_model"]: m["marketing_model"] for m in all_mappings}
+    for item in items:
+        raw_model = item.get(phone_model_key, "")
+        raw_eng_model = item.get(engineering_model_key, "")
+        marketing = enrich_phone_model(raw_model, raw_eng_model, mappings)
+        item["marketing_model"] = marketing or ""
+    return items
 
 def get_app_usage_summary():
     with get_cursor() as cursor:

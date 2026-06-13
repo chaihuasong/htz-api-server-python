@@ -26,6 +26,7 @@ class AppUsageItem(BaseModel):
     version: str = ""
     pkg: str = ""
     phone_model: str = ""
+    engineering_model: str = ""
     os_version: str = ""
     network_type: str = ""
     source: str = ""
@@ -40,6 +41,7 @@ class FeedbackItem(BaseModel):
     pkg: str = ""
     version: str = ""
     phone_model: str = ""
+    engineering_model: str = ""
     os_version: str = ""
     device_id: str = ""
     status: str = "pending"
@@ -62,6 +64,13 @@ class NotificationQueryItem(BaseModel):
 class UserTelephoneUpdateItem(BaseModel):
     unionid: str
     telephone: str
+
+class PhoneModelMappingItem(BaseModel):
+    id: int = None
+    engineering_model: str
+    marketing_model: str
+    manufacturer: str = ""
+    remark: str = ""
 
 class UserInfoItem(BaseModel):
     unionid: str

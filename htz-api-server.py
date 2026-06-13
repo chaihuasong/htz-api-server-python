@@ -11,7 +11,7 @@ import shutil
 import urllib.request
 import urllib.parse
 
-from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem
+from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, PhoneModelMappingItem
 from db import *
 from typing import List
 
@@ -47,6 +47,7 @@ init_app_usage_table()
 init_qr_session_table()
 init_feedback_table()
 init_notification_table()
+init_phone_model_mapping_table()
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -196,6 +197,7 @@ def report_usage_batch(items: List[AppUsageItem]):
 @app.get("/htz-api-pyservice/api/v1/usage/list")
 def list_usage():
     result = get_all_app_usage()
+    result = enrich_list_with_marketing_model(result, "phone_model")
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 @app.get("/htz-api-pyservice/api/v1/usage/summary")
@@ -217,6 +219,7 @@ def feedback_add(item: FeedbackItem):
 @app.get("/htz-api-pyservice/api/v1/feedback/list")
 def feedback_list():
     result = get_all_feedback()
+    result = enrich_list_with_marketing_model(result, "phone_model")
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 @app.post("/htz-api-pyservice/api/v1/feedback/update")
@@ -463,6 +466,34 @@ margin:0;font-family:sans-serif;background:#f5f5f5;}
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin@1234"
 ADMIN_TOKEN = "htz_admin_token_2024"
+
+# ===== 手机型号映射管理 =====
+
+@app.get("/htz-api-pyservice/api/v1/phone-model-mapping/list")
+def phone_model_mapping_list():
+    result = get_all_phone_model_mappings()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.post("/htz-api-pyservice/api/v1/phone-model-mapping/add")
+def phone_model_mapping_add(item: PhoneModelMappingItem):
+    print(f"phone_model_mapping_add: {item}")
+    try:
+        result = add_phone_model_mapping(item)
+        return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+    except Exception as e:
+        return JSONResponse({"code": "500", "msg": str(e), "data": None})
+
+@app.post("/htz-api-pyservice/api/v1/phone-model-mapping/update")
+def phone_model_mapping_update(item: PhoneModelMappingItem):
+    print(f"phone_model_mapping_update: {item}")
+    update_phone_model_mapping(item)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/phone-model-mapping/delete")
+def phone_model_mapping_delete(id: int):
+    print(f"phone_model_mapping_delete id: {id}")
+    delete_phone_model_mapping(id)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.post("/htz-api-pyservice/api/v1/admin/login")
 def admin_login(username: str = Body(...), password: str = Body(...)):
