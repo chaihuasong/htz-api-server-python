@@ -467,8 +467,8 @@ def save_app_usage(item: AppUsageItem):
             INSERT INTO app_usage (device_id, user_id, date, open_count, duration_ms, version, pkg, phone_model, os_version, network_type, source, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(device_id, date) DO UPDATE SET
-                open_count = excluded.open_count,
-                duration_ms = excluded.duration_ms,
+                open_count = MAX(app_usage.open_count, excluded.open_count),
+                duration_ms = MAX(app_usage.duration_ms, excluded.duration_ms),
                 user_id = CASE WHEN excluded.user_id != '' THEN excluded.user_id ELSE app_usage.user_id END,
                 version = CASE WHEN excluded.version != '' THEN excluded.version ELSE app_usage.version END,
                 pkg = CASE WHEN excluded.pkg != '' THEN excluded.pkg ELSE app_usage.pkg END,
@@ -487,7 +487,10 @@ def save_app_usage_batch(items: list):
 def get_all_app_usage():
     with get_cursor() as cursor:
         cursor.execute("""
-            SELECT a.*, u.nickname
+            SELECT a.*,
+                   CASE WHEN a.user_id = '' THEN '未登录'
+                        WHEN u.nickname IS NULL THEN '-'
+                        ELSE u.nickname END as nickname
             FROM app_usage a
             LEFT JOIN user_info u ON a.user_id = u.unionid
             ORDER BY a.date DESC, a.id DESC

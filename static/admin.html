@@ -205,6 +205,7 @@
                             <th>ID</th>
                             <th>头像</th>
                             <th>昵称</th>
+                            <th>UnionID</th>
                             <th>性别</th>
                             <th>地区</th>
                             <th>电话</th>
@@ -760,22 +761,23 @@
         function renderUsers(data) {
             const tbody = document.getElementById('users-table');
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="empty">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="empty">暂无数据</td></tr>';
                 return;
             }
             tbody.innerHTML = data.map(item => {
                 const region = [item.country, item.province, item.city].filter(Boolean).join(' ');
                 const avatarHtml = item.headimgurl
                     ? `<img src="${item.headimgurl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`
-                    : '-';
+                    : '<span style="color:#999">无</span>';
                 return `
                 <tr>
                     <td>${item.id}</td>
                     <td>${avatarHtml}</td>
-                    <td>${item.nickname || '-'}</td>
+                    <td>${item.nickname || '<span style="color:#999">微信用户</span>'}</td>
+                    <td><span class="text-truncate" title="${(item.unionid || '').replace(/"/g,'&quot;')}">${item.unionid ? item.unionid.substring(0, 12) + '…' : '-'}</span></td>
                     <td>${sexLabel(item.sex)}</td>
                     <td>${region || '-'}</td>
-                    <td>${item.telephone || '-'}</td>
+                    <td>${item.telephone || '<span style="color:#999">未绑定</span>'}</td>
                     <td><span class="text-truncate" title="${(item.note || '').replace(/"/g,'&quot;')}">${item.note || '-'}</span></td>
                     <td>${item.create_time || '-'}</td>
                     <td>${item.last_update_time || '-'}</td>
