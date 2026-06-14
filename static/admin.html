@@ -1047,15 +1047,25 @@
             renderLogs(filtered);
         }
 
-        function showLogDetail(id) {
-            const item = logsData.find(l => l.id === id);
-            if (!item) return;
-            document.getElementById('log-detail').innerHTML = `
-                <table style="width:100%">
-                    ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:100px">${k}</td><td style="padding:8px;word-break:break-all;white-space:pre-wrap">${v || '-'}</td></tr>`).join('')}
-                </table>
-            `;
+        async function showLogDetail(id) {
             document.getElementById('log-modal').classList.add('show');
+            document.getElementById('log-detail').innerHTML = '<div style="text-align:center;padding:40px;color:#999">加载中...</div>';
+            try {
+                const res = await fetch(`${API_BASE}/log/detail?id=${id}`);
+                const json = await res.json();
+                const item = json.data;
+                if (!item) {
+                    document.getElementById('log-detail').innerHTML = '<div style="text-align:center;padding:40px;color:#999">未找到日志记录</div>';
+                    return;
+                }
+                document.getElementById('log-detail').innerHTML = `
+                    <table style="width:100%">
+                        ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:100px">${k}</td><td style="padding:8px;word-break:break-all;white-space:pre-wrap">${v || '-'}</td></tr>`).join('')}
+                    </table>
+                `;
+            } catch (e) {
+                document.getElementById('log-detail').innerHTML = '<div style="text-align:center;padding:40px;color:#d32f2f">加载失败: ' + e.message + '</div>';
+            }
         }
 
         function closeLogModal() {

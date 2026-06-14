@@ -48,6 +48,24 @@ def _rows_to_list(rows):
 
 # ===== 日志操作 =====
 
+def init_log_info_table():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS log_info (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pkg TEXT DEFAULT '',
+                version TEXT DEFAULT '',
+                phone TEXT DEFAULT '',
+                type TEXT DEFAULT '',
+                info TEXT DEFAULT '',
+                time TEXT DEFAULT '',
+                user TEXT DEFAULT ''
+            )
+        """)
+        # 为常用查询列创建索引
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_info_pkg ON log_info(pkg)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_info_time ON log_info(time)")
+
 def save_log_info(request_item: RequestItem):
     with get_cursor() as cursor:
         cursor.execute("""
@@ -120,10 +138,24 @@ def get_log_info(pkg: str):
         data = _rows_to_list(result)
     return json.dumps(data, indent=4)
 
+LOG_INFO_TRUNCATE_LENGTH = 500
+
 def get_all_logs():
     with get_cursor() as cursor:
-        cursor.execute("SELECT * FROM log_info ORDER BY id DESC LIMIT 500")
+        cursor.execute(f"""
+            SELECT id, pkg, version, phone, type,
+                   SUBSTR(info, 1, {LOG_INFO_TRUNCATE_LENGTH}) || CASE WHEN LENGTH(info) > {LOG_INFO_TRUNCATE_LENGTH} THEN '...' ELSE '' END as info,
+                   time, user
+            FROM log_info
+            ORDER BY id DESC
+            LIMIT 500
+        """)
         return _rows_to_list(cursor.fetchall())
+
+def get_log_detail(log_id: int):
+    with get_cursor() as cursor:
+        cursor.execute("SELECT * FROM log_info WHERE id=?", (log_id,))
+        return _row_to_dict(cursor.fetchone())
 
 # ===== AK/SK 操作 =====
 

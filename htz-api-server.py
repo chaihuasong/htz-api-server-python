@@ -43,6 +43,7 @@ ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 ALLOWED_VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".3gp", ".webm", ".mkv"}
 
 # 初始化数据库表
+init_log_info_table()
 init_app_usage_table()
 init_qr_session_table()
 init_feedback_table()
@@ -173,6 +174,13 @@ def list_userinfo():
 @app.get("/htz-api-pyservice/api/v1/log/list")
 def list_logs():
     result = get_all_logs()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.get("/htz-api-pyservice/api/v1/log/detail")
+def log_detail(id: int):
+    result = get_log_detail(id)
+    if result is None:
+        return JSONResponse({"code": "404", "msg": "log not found", "data": None})
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 # ===== 用量统计 API =====
