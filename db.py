@@ -564,6 +564,23 @@ def enrich_phone_model(phone_model: str, engineering_model: str = "", mappings: 
         result = mappings.get(engineering_model, None)
     return result
 
+def get_phone_model_stats():
+    """按手机型号统计用量（含营销型号映射），按打开次数降序"""
+    with get_cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                COALESCE(NULLIF(phone_model, ''), '未知') as phone_model,
+                COALESCE(NULLIF(engineering_model, ''), '') as engineering_model,
+                COUNT(DISTINCT device_id) as devices,
+                COALESCE(SUM(open_count), 0) as opens,
+                COALESCE(SUM(duration_ms), 0) as duration_ms
+            FROM app_usage
+            GROUP BY phone_model, engineering_model
+            ORDER BY opens DESC
+        """)
+        rows = _rows_to_list(cursor.fetchall())
+    return enrich_list_with_marketing_model(rows, "phone_model")
+
 def enrich_list_with_marketing_model(items: list, phone_model_key: str = "phone_model", engineering_model_key: str = "engineering_model"):
     """为列表中的每个 item 添加 marketing_model 字段"""
     all_mappings = get_all_phone_model_mappings()

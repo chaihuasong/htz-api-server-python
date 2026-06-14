@@ -205,6 +205,11 @@ def usage_summary():
     result = get_app_usage_summary()
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
+@app.get("/htz-api-pyservice/api/v1/usage/phone-model-stats")
+def usage_phone_model_stats():
+    result = get_phone_model_stats()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
 # ===== 意见反馈 API =====
 @app.post("/htz-api-pyservice/api/v1/feedback/add")
 def feedback_add(item: FeedbackItem):
