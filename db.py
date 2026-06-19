@@ -143,18 +143,30 @@ LOG_INFO_TRUNCATE_LENGTH = 500
 def get_all_logs():
     with get_cursor() as cursor:
         cursor.execute(f"""
-            SELECT id, pkg, version, phone, type,
-                   SUBSTR(info, 1, {LOG_INFO_TRUNCATE_LENGTH}) || CASE WHEN LENGTH(info) > {LOG_INFO_TRUNCATE_LENGTH} THEN '...' ELSE '' END as info,
-                   time, user
-            FROM log_info
-            ORDER BY id DESC
+            SELECT l.id, l.pkg, l.version, l.phone, l.type,
+                   SUBSTR(l.info, 1, {LOG_INFO_TRUNCATE_LENGTH}) || CASE WHEN LENGTH(l.info) > {LOG_INFO_TRUNCATE_LENGTH} THEN '...' ELSE '' END as info,
+                   l.time, l.user,
+                   CASE WHEN l.user = '' THEN '未登录'
+                        WHEN u.nickname IS NULL OR u.nickname = '' THEN l.user
+                        ELSE u.nickname END as user_name
+            FROM log_info l
+            LEFT JOIN user_info u ON l.user = u.unionid
+            ORDER BY l.id DESC
             LIMIT 500
         """)
         return _rows_to_list(cursor.fetchall())
 
 def get_log_detail(log_id: int):
     with get_cursor() as cursor:
-        cursor.execute("SELECT * FROM log_info WHERE id=?", (log_id,))
+        cursor.execute("""
+            SELECT l.*,
+                   CASE WHEN l.user = '' THEN '未登录'
+                        WHEN u.nickname IS NULL OR u.nickname = '' THEN l.user
+                        ELSE u.nickname END as user_name
+            FROM log_info l
+            LEFT JOIN user_info u ON l.user = u.unionid
+            WHERE l.id=?
+        """, (log_id,))
         return _row_to_dict(cursor.fetchone())
 
 # ===== AK/SK 操作 =====
@@ -190,6 +202,29 @@ def delete_aksk(id: int):
         cursor.execute("DELETE FROM aksk WHERE id=?", (id,))
 
 # ===== 用户操作 =====
+
+def init_user_info_table():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_info (
+                unionid TEXT PRIMARY KEY,
+                nickname TEXT DEFAULT '',
+                openid TEXT DEFAULT '',
+                sex TEXT DEFAULT '',
+                headimgurl TEXT DEFAULT '',
+                country TEXT DEFAULT '',
+                province TEXT DEFAULT '',
+                city TEXT DEFAULT '',
+                language TEXT DEFAULT '',
+                group_id TEXT DEFAULT '',
+                telephone TEXT DEFAULT '',
+                pwd TEXT DEFAULT '',
+                sign TEXT DEFAULT '',
+                note TEXT DEFAULT '',
+                create_time TEXT,
+                last_update_time TEXT
+            )
+        """)
 
 def get_all_users():
     with get_cursor() as cursor:
@@ -522,7 +557,7 @@ def get_all_app_usage():
         cursor.execute("""
             SELECT a.*,
                    CASE WHEN a.user_id = '' THEN '未登录'
-                        WHEN u.nickname IS NULL THEN '-'
+                        WHEN u.nickname IS NULL OR u.nickname = '' THEN '-'
                         ELSE u.nickname END as nickname
             FROM app_usage a
             LEFT JOIN user_info u ON a.user_id = u.unionid

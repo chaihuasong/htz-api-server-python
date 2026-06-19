@@ -1031,7 +1031,7 @@
                     <td><span class="badge badge-info">${item.type || ''}</span></td>
                     <td><span class="text-truncate" title="${item.info || ''}">${item.info || ''}</span></td>
                     <td>${item.time || ''}</td>
-                    <td>${item.user || ''}</td>
+                    <td>${item.user_name || item.user || '-'}</td>
                 </tr>
             `).join('');
         }
@@ -1042,7 +1042,8 @@
                 (l.pkg || '').toLowerCase().includes(keyword) ||
                 (l.info || '').toLowerCase().includes(keyword) ||
                 (l.type || '').toLowerCase().includes(keyword) ||
-                (l.user || '').toLowerCase().includes(keyword)
+                (l.user || '').toLowerCase().includes(keyword) ||
+                (l.user_name || '').toLowerCase().includes(keyword)
             );
             renderLogs(filtered);
         }
@@ -1058,9 +1059,19 @@
                     document.getElementById('log-detail').innerHTML = '<div style="text-align:center;padding:40px;color:#999">未找到日志记录</div>';
                     return;
                 }
+                const userFields = ['user', 'user_name'];
+                const fieldLabelMap = { user: '用户标识', user_name: '用户名' };
                 document.getElementById('log-detail').innerHTML = `
                     <table style="width:100%">
-                        ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:100px">${k}</td><td style="padding:8px;word-break:break-all;white-space:pre-wrap">${v || '-'}</td></tr>`).join('')}
+                        ${Object.entries(item).map(([k, v]) => {
+                            if (userFields.includes(k)) {
+                                const label = fieldLabelMap[k] || k;
+                                const display = v || '-';
+                                const style = k === 'user_name' ? 'color:#1976d2;font-weight:600' : 'color:#999;font-size:12px';
+                                return `<tr><td style="padding:8px;font-weight:500;width:100px">${label}</td><td style="padding:8px;word-break:break-all;white-space:pre-wrap;${style}">${display}</td></tr>`;
+                            }
+                            return `<tr><td style="padding:8px;font-weight:500;width:100px">${k}</td><td style="padding:8px;word-break:break-all;white-space:pre-wrap">${v || '-'}</td></tr>`;
+                        }).join('')}
                     </table>
                 `;
             } catch (e) {

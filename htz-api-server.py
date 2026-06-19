@@ -49,6 +49,7 @@ init_qr_session_table()
 init_feedback_table()
 init_notification_table()
 init_phone_model_mapping_table()
+init_user_info_table()
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
