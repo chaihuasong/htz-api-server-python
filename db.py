@@ -273,6 +273,59 @@ def select_user_dict_by_telephone(telephone: str):
         cursor.execute("SELECT * FROM user_info WHERE telephone=?", (telephone,))
         return _row_to_dict(cursor.fetchone())
 
+# 与十年持志系统双向同步的「公共资料字段」白名单。
+# 注意：unionid / openid / pwd / group_id / note 等为各系统专属字段，绝不跨系统覆盖。
+USER_SYNC_FIELDS = ["nickname", "sex", "headimgurl",
+                    "country", "province", "city", "language", "sign"]
+
+def apply_user_sync_by_telephone(telephone: str, incoming: dict, incoming_time: str = ""):
+    """按手机号匹配本地用户，合并十年持志推送来的公共资料字段。
+    规则：非空优先 + 最近更新优先（incoming_time / last_update_time 形如 'YYYY-MM-DD HH:MM:SS'，可字典序比较）。
+    - 入站数据为空的字段一律不覆盖本地已有值；
+    - 仅更新已用手机号匹配上的记录，不跨系统新建用户；
+    - 不触发回推（由调用方保证），避免双向死循环。
+    返回 True=已匹配（含无变化），False=未找到该手机号用户。"""
+    telephone = (telephone or "").strip()
+    if not telephone:
+        return False
+    incoming_time = (incoming_time or "").strip()
+    with get_cursor() as cursor:
+        cursor.execute("SELECT * FROM user_info WHERE telephone=?", (telephone,))
+        local = _row_to_dict(cursor.fetchone())
+        if not local:
+            return False
+        local_time = (local.get("last_update_time") or "").strip()
+        merged = {}
+        changed = False
+        for f in USER_SYNC_FIELDS:
+            inc = incoming.get(f)
+            inc = "" if inc is None else str(inc).strip()
+            loc = local.get(f)
+            loc = "" if loc is None else str(loc)
+            take = False
+            if inc:
+                if not loc:
+                    take = True
+                elif incoming_time and (not local_time or incoming_time >= local_time):
+                    take = True
+            if take and inc != loc:
+                merged[f] = inc
+                changed = True
+            else:
+                merged[f] = loc
+        if not changed:
+            return True
+        new_time = max([t for t in (local_time, incoming_time) if t],
+                       default=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        cursor.execute("""
+            UPDATE user_info SET nickname=?, sex=?, headimgurl=?, country=?,
+                province=?, city=?, language=?, sign=?, last_update_time=?
+            WHERE telephone=?
+        """, (merged["nickname"], merged["sex"], merged["headimgurl"], merged["country"],
+              merged["province"], merged["city"], merged["language"], merged["sign"],
+              new_time, telephone))
+        return True
+
 def select_user_by_telephone(telephone: str):
     with get_cursor() as cursor:
         cursor.execute("SELECT * FROM user_info WHERE telephone=?", (telephone,))

@@ -10,10 +10,52 @@ import time
 import shutil
 import urllib.request
 import urllib.parse
+import threading
+from datetime import datetime
 
-from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, PhoneModelMappingItem
+from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, PhoneModelMappingItem, UserSyncItem
 from db import *
 from typing import List
+
+# ===== 与十年持志（TenYears）系统的用户资料双向同步配置 =====
+# 十年持志后端（Spring Boot + MongoDB）入站同步端点，按手机号匹配合并公共资料字段。
+# 可按部署环境调整（同机可改为内网地址）。
+TENYEARS_SYNC_URL = "http://htzchina.org:8081/syncByTelephone"
+
+
+def _push_user_to_tenyears(payload: dict):
+    """把本地用户的公共资料字段按手机号异步推送到十年持志系统。
+    无手机号则跳过；线程内执行，失败仅记录日志，不影响主流程。
+    注意：仅在「本系统主动写入」时调用，入站 /userinfo/sync 不调用，避免双向死循环。"""
+    telephone = (payload.get("telephone") or "").strip()
+    if not telephone:
+        return
+
+    def _do():
+        try:
+            data = urllib.parse.urlencode({
+                "telephone": telephone,
+                "nickname": payload.get("nickname", "") or "",
+                "sex": str(payload.get("sex", "") or ""),
+                "headimgurl": payload.get("headimgurl", "") or "",
+                "country": payload.get("country", "") or "",
+                "province": payload.get("province", "") or "",
+                "city": payload.get("city", "") or "",
+                "language": payload.get("language", "") or "",
+                "sign": payload.get("sign", "") or "",
+                "lastUpdateTime": payload.get("last_update_time", "") or "",
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                TENYEARS_SYNC_URL, data=data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            with urllib.request.urlopen(req, timeout=8) as r:
+                r.read()
+            print(f"push_user_to_tenyears ok telephone={telephone}")
+        except Exception as e:
+            print(f"push_user_to_tenyears failed telephone={telephone}: {e}")
+
+    threading.Thread(target=_do, daemon=True).start()
 
 # ===== 微信扫码登录配置 =====
 # 公众号 APPID，appsecret 存在 aksk 表 appName='htz-gzh' 的 accessKeySecure 字段
@@ -105,6 +147,19 @@ def save_userinfo(request_item: UserInfoItem):
 def update_userinfo(request_item: UserInfoItem):
     print(f"update_userinfo unionid:{request_item}")
     update_user_by_unionid(request_item)
+    # 写时出站：把公共资料字段同步到十年持志系统（按手机号）
+    _push_user_to_tenyears({
+        "telephone": request_item.telephone,
+        "nickname": request_item.nickname,
+        "sex": request_item.sex,
+        "headimgurl": request_item.headimgurl,
+        "country": request_item.country,
+        "province": request_item.province,
+        "city": request_item.city,
+        "language": request_item.language,
+        "sign": request_item.sign,
+        "last_update_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    })
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.post("/htz-api-pyservice/api/v1/userinfo/telephone/update")
@@ -123,7 +178,20 @@ def update_user_telephone(request_item: UserTelephoneUpdateItem):
     updated_count = update_user_telephone_by_unionid(unionid, telephone)
     if updated_count == 0:
         return JSONResponse({"code": "404", "msg": "user not found", "data": None})
+    # 绑定/更新手机号后，按手机号把该用户公共资料推送到十年持志系统
+    synced_user = select_user_dict_by_telephone(telephone)
+    if synced_user:
+        _push_user_to_tenyears(synced_user)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/userinfo/sync")
+def userinfo_sync(item: UserSyncItem):
+    """入站：接收十年持志系统按手机号推送的公共资料，合并到本地（非空+最近更新优先）。
+    本端点不再回推，避免双向死循环。"""
+    ok = apply_user_sync_by_telephone(item.telephone, item.dict(), item.last_update_time)
+    if not ok:
+        return JSONResponse({"code": "404", "msg": "user not found", "data": None})
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": None})
 
 @app.get("/htz-api-pyservice/api/v1/userinfo/getbyphone")
 def get_userinfo_by_phone(telephone: str):

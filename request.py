@@ -87,3 +87,16 @@ class UserInfoItem(BaseModel):
     pwd: str
     sign: str
     note: str
+
+# 十年持志系统按手机号推送过来的公共资料同步数据（仅含可跨系统同步的字段）
+class UserSyncItem(BaseModel):
+    telephone: str = ""
+    nickname: str = ""
+    sex: str = ""
+    headimgurl: str = ""
+    country: str = ""
+    province: str = ""
+    city: str = ""
+    language: str = ""
+    sign: str = ""
+    last_update_time: str = ""
