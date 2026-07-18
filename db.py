@@ -83,20 +83,33 @@ def upsert_user_wechat(wechat_user_info: dict):
     existing = select_user_dict_by_unionid(unionid)
     with get_cursor() as cursor:
         if existing:
+            # 已存在用户：只补空，不覆盖用户自定义资料。
+            # 头像特殊处理：为空或本来就是微信头像（qlogo.cn 会过期）时才刷新为最新微信头像，
+            # OSS 自定义头像保持不动。
+            def _keep(field: str):
+                old = (existing.get(field) or "").strip()
+                return old if old else str(wechat_user_info.get(field, ""))
+
+            old_head = (existing.get("headimgurl") or "").strip()
+            if old_head and "qlogo.cn" not in old_head:
+                headimgurl = old_head
+            else:
+                headimgurl = wechat_user_info.get("headimgurl", old_head)
+
             cursor.execute("""
                 UPDATE user_info SET
                     nickname=?, openid=?, sex=?, headimgurl=?, country=?,
                     province=?, city=?, language=?, last_update_time=?
                 WHERE unionid=?
             """, (
-                wechat_user_info.get("nickname", existing.get("nickname", "")),
+                _keep("nickname"),
                 wechat_user_info.get("openid", existing.get("openid", "")),
-                str(wechat_user_info.get("sex", existing.get("sex", ""))),
-                wechat_user_info.get("headimgurl", existing.get("headimgurl", "")),
-                wechat_user_info.get("country", existing.get("country", "")),
-                wechat_user_info.get("province", existing.get("province", "")),
-                wechat_user_info.get("city", existing.get("city", "")),
-                wechat_user_info.get("language", existing.get("language", "")),
+                _keep("sex"),
+                headimgurl,
+                _keep("country"),
+                _keep("province"),
+                _keep("city"),
+                _keep("language"),
                 now,
                 unionid
             ))
