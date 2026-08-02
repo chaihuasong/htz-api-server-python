@@ -92,6 +92,7 @@ init_feedback_table()
 init_notification_table()
 init_phone_model_mapping_table()
 init_user_info_table()
+init_gray_release_table()
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -575,6 +576,48 @@ def phone_model_mapping_update(item: PhoneModelMappingItem):
 def phone_model_mapping_delete(id: int):
     print(f"phone_model_mapping_delete id: {id}")
     delete_phone_model_mapping(id)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+# ===== 灰度发布 =====
+# 新版本发布后默认处于灰度状态，只有白名单手机号的用户能收到升级提示；
+# 白名单用户验证通过后在 App 内点「确认发布」，该版本才对所有人放开。
+
+@app.get("/htz-api-pyservice/api/v1/release/status")
+def release_status(version_code: int, token: str = Header(default="")):
+    """客户端查询某个版本是否已全量放开，同时下发白名单供客户端判断入口可见性。"""
+    telephone = get_user_telephone(token)
+    result = {
+        "version_code": version_code,
+        "released": is_version_released(version_code),
+        "max_released_version": get_max_released_version(),
+        "gray_phones": GRAY_RELEASE_PHONES,
+        "is_gray_user": is_gray_phone(telephone),
+    }
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.post("/htz-api-pyservice/api/v1/release/promote")
+def release_promote(version_code: int = Body(...), version_name: str = Body(default=""),
+                    token: str = Header(default="")):
+    """确认发布：把灰度版本放开给全量用户。仅白名单手机号可操作。"""
+    telephone = get_user_telephone(token)
+    if not is_gray_phone(telephone):
+        print(f"release_promote denied: token={token} telephone={telephone}")
+        return JSONResponse({"code": "403", "msg": "无权限确认发布", "data": None})
+    promote_release(version_code, version_name, token, telephone)
+    print(f"release_promote ok: version_code={version_code} by {telephone}")
+    return JSONResponse({"code": "0", "msg": "SUCCESS",
+                         "data": {"version_code": version_code, "released": True}})
+
+@app.get("/htz-api-pyservice/api/v1/release/list")
+def release_list():
+    """管理端查看已全量放开的版本记录。"""
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": get_all_released_versions()})
+
+@app.post("/htz-api-pyservice/api/v1/release/revoke")
+def release_revoke(version_code: int = Body(..., embed=True)):
+    """管理端回退：把版本重新打回灰度状态。"""
+    revoke_release(version_code)
+    print(f"release_revoke: version_code={version_code}")
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.post("/htz-api-pyservice/api/v1/admin/login")

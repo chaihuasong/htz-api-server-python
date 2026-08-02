@@ -681,6 +681,70 @@ def delete_phone_model_mapping(id: int):
     with get_cursor() as cursor:
         cursor.execute("DELETE FROM phone_model_mapping WHERE id=?", (id,))
 
+# ===== 灰度发布操作 =====
+
+# 灰度期间允许升级、并且有权确认全量的手机号白名单
+GRAY_RELEASE_PHONES = ["13585863020"]
+
+def init_gray_release_table():
+    """gray_release 只记录「已确认全量」的版本，没有记录即表示该版本仍在灰度中。"""
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gray_release (
+                version_code INTEGER PRIMARY KEY,
+                version_name TEXT DEFAULT '',
+                promoted_by TEXT DEFAULT '',
+                promoted_phone TEXT DEFAULT '',
+                promoted_at TEXT
+            )
+        """)
+
+def get_user_telephone(unionid: str) -> str:
+    if not unionid:
+        return ""
+    with get_cursor() as cursor:
+        cursor.execute("SELECT telephone FROM user_info WHERE unionid=?", (unionid,))
+        row = cursor.fetchone()
+    return (row["telephone"] or "").strip() if row else ""
+
+def is_gray_phone(telephone: str) -> bool:
+    return bool(telephone) and telephone.strip() in GRAY_RELEASE_PHONES
+
+def is_version_released(version_code: int) -> bool:
+    with get_cursor() as cursor:
+        cursor.execute("SELECT version_code FROM gray_release WHERE version_code=?", (version_code,))
+        return cursor.fetchone() is not None
+
+def get_max_released_version() -> int:
+    with get_cursor() as cursor:
+        cursor.execute("SELECT MAX(version_code) AS max_version FROM gray_release")
+        row = cursor.fetchone()
+    return int(row["max_version"]) if row and row["max_version"] is not None else 0
+
+def promote_release(version_code: int, version_name: str, unionid: str, telephone: str):
+    """把某个版本标记为已全量放开，重复确认视为幂等。"""
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO gray_release (version_code, version_name, promoted_by, promoted_phone, promoted_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(version_code) DO UPDATE SET
+                version_name = excluded.version_name,
+                promoted_by = excluded.promoted_by,
+                promoted_phone = excluded.promoted_phone,
+                promoted_at = excluded.promoted_at
+        """, (version_code, version_name or "", unionid or "", telephone or "", now))
+
+def get_all_released_versions():
+    with get_cursor() as cursor:
+        cursor.execute("SELECT * FROM gray_release ORDER BY version_code DESC LIMIT 200")
+        return _rows_to_list(cursor.fetchall())
+
+def revoke_release(version_code: int):
+    """回退：把版本重新打回灰度状态。"""
+    with get_cursor() as cursor:
+        cursor.execute("DELETE FROM gray_release WHERE version_code=?", (version_code,))
+
 def enrich_phone_model(phone_model: str, engineering_model: str = "", mappings: dict = None) -> str:
     """根据 phone_model 或 engineering_model 查找对应的营销型号，没找到返回 None"""
     if not phone_model and not engineering_model:
