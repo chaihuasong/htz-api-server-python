@@ -581,11 +581,15 @@ def phone_model_mapping_delete(id: int):
 # ===== 灰度发布 =====
 # 新版本发布后默认处于灰度状态，只有白名单手机号的用户能收到升级提示；
 # 白名单用户验证通过后在 App 内点「确认发布」，该版本才对所有人放开。
+#
+# 白名单认的是手机号，手机号要拿 unionid 去 user_info 里查。客户端 header 里的 token 是
+# 主服务端签发的 UUID、不是 unionid，所以必须用单独的 unionid 头，token 只作为老客户端的兜底。
 
 @app.get("/htz-api-pyservice/api/v1/release/status")
-def release_status(version_code: int, token: str = Header(default="")):
+def release_status(version_code: int, token: str = Header(default=""),
+                   unionid: str = Header(default="")):
     """客户端查询某个版本是否已全量放开，同时下发白名单供客户端判断入口可见性。"""
-    telephone = get_user_telephone(token)
+    telephone = get_user_telephone(unionid or token)
     result = {
         "version_code": version_code,
         "released": is_version_released(version_code),
@@ -597,13 +601,14 @@ def release_status(version_code: int, token: str = Header(default="")):
 
 @app.post("/htz-api-pyservice/api/v1/release/promote")
 def release_promote(version_code: int = Body(...), version_name: str = Body(default=""),
-                    token: str = Header(default="")):
+                    token: str = Header(default=""), unionid: str = Header(default="")):
     """确认发布：把灰度版本放开给全量用户。仅白名单手机号可操作。"""
-    telephone = get_user_telephone(token)
+    user_key = unionid or token
+    telephone = get_user_telephone(user_key)
     if not is_gray_phone(telephone):
-        print(f"release_promote denied: token={token} telephone={telephone}")
+        print(f"release_promote denied: user_key={user_key} telephone={telephone}")
         return JSONResponse({"code": "403", "msg": "无权限确认发布", "data": None})
-    promote_release(version_code, version_name, token, telephone)
+    promote_release(version_code, version_name, user_key, telephone)
     print(f"release_promote ok: version_code={version_code} by {telephone}")
     return JSONResponse({"code": "0", "msg": "SUCCESS",
                          "data": {"version_code": version_code, "released": True}})
