@@ -398,6 +398,16 @@ def expire_qr_session(session_id: str):
             UPDATE qr_session SET status='expired', updated_at=? WHERE session_id=?
         """, (now, session_id))
 
+def consume_qr_session(session_id: str):
+    """客户端确认已把登录态存到本地后调用，防止同一个 session 被反复取用。
+    只有 confirmed 的会话能被消费；轮询本身不消费，否则响应一丢用户就登不上了。"""
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            UPDATE qr_session SET status='consumed', updated_at=?
+            WHERE session_id=? AND status='confirmed'
+        """, (now, session_id))
+
 # ===== 意见反馈 =====
 
 def init_feedback_table():

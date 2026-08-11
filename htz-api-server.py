@@ -62,8 +62,9 @@ def _push_user_to_tenyears(payload: dict):
 WX_GZH_APPID = "wx83aec75c3ca58f0e"
 # redirect_uri 须与公众号后台「网页授权域名」一致
 WX_REDIRECT_URI = "http://htzchina.org/htz-api-pyservice/api/v1/wx/callback"
-# 二维码会话有效期（秒）
-QR_SESSION_EXPIRE_SECONDS = 300
+# 二维码会话有效期（秒）。
+# 同一台手机扫码要走「截图 → 打开微信 → 扫一扫相册 → 授权 → 返回 App」，5 分钟经常不够用。
+QR_SESSION_EXPIRE_SECONDS = 600
 
 # 初始化日志记录器
 logger = logging.getLogger(__name__)
@@ -448,6 +449,15 @@ def qr_login_poll(session_id: str):
         }})
 
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"status": session["status"]}})
+
+
+@app.post("/htz-api-pyservice/api/v1/qr/login/consume")
+def qr_login_consume(session_id: str = Body(..., embed=True)):
+    """APP 已把登录态写到本地后回调，标记会话用完。
+    轮询阶段不做这件事：poll 的响应可能在路上丢掉，那时会话必须还能再取一次。"""
+    consume_qr_session(session_id)
+    print(f"qr_login_consume session_id={session_id}")
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"status": "consumed"}})
 
 
 @app.get("/htz-api-pyservice/api/v1/wx/callback", response_class=HTMLResponse)
