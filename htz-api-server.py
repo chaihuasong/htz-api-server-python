@@ -65,6 +65,11 @@ WX_REDIRECT_URI = "http://htzchina.org/htz-api-pyservice/api/v1/wx/callback"
 # 二维码会话有效期（秒）。
 # 同一台手机扫码要走「截图 → 打开微信 → 扫一扫相册 → 授权 → 返回 App」，5 分钟经常不够用。
 QR_SESSION_EXPIRE_SECONDS = 600
+# 主服务端的 unionid 登录接口，扫码登录的 token 只能由它签发
+MAIN_SERVER_LOGIN_UNIONID = "http://39.105.174.143:9100/post/login/unionid"
+# 换 token 的重试次数与间隔（秒）：主服务端偶尔抖一下不该让用户白扫一次
+MAIN_SERVER_LOGIN_RETRIES = 3
+MAIN_SERVER_LOGIN_RETRY_INTERVAL = 1
 
 # 初始化日志记录器
 logger = logging.getLogger(__name__)
@@ -460,19 +465,64 @@ def qr_login_consume(session_id: str = Body(..., embed=True)):
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"status": "consumed"}})
 
 
+def _wx_callback_page(icon: str, msg: str, tip: str):
+    """扫码授权后微信里显示的结果页"""
+    return f"""
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{{display:flex;justify-content:center;align-items:center;height:100vh;
+margin:0;font-family:sans-serif;background:#f5f5f5;}}
+.box{{text-align:center;padding:40px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.1);}}
+.icon{{font-size:48px;}}.msg{{margin-top:16px;font-size:18px;color:#333;}}
+.tip{{margin-top:8px;font-size:14px;color:#999;}}</style></head>
+<body><div class="box"><div class="icon">{icon}</div>
+<div class="msg">{msg}</div>
+<div class="tip">{tip}</div></div></body></html>
+"""
+
+
+def _fetch_main_server_token(user_info: dict):
+    """拿 unionid 去主服务端换 token，换不到返回空字符串。
+
+    这个 token 主服务端每次请求都要拿去查库（查不到直接 401），所以**不能本地伪造**：
+    伪造出来的 token 会让 App 显示「已登录」，但专辑、收藏、购买、灰度全部 401，
+    客户端又没有自愈逻辑，用户只能一直卡在这个残废登录态里。
+    """
+    req_data = json.dumps(user_info, ensure_ascii=False).encode("utf-8")
+    for attempt in range(1, MAIN_SERVER_LOGIN_RETRIES + 1):
+        try:
+            req = urllib.request.Request(
+                MAIN_SERVER_LOGIN_UNIONID,
+                data=req_data, headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as r:
+                login_resp = json.loads(r.read())
+            print(f"wx_callback main_server resp code={login_resp.get('code')} attempt={attempt}")
+            if login_resp.get("code") == 200:
+                token = login_resp.get("data", {}).get("token", "")
+                if token:
+                    print(f"wx_callback got token from main server unionid={user_info.get('unionid')}")
+                    return token
+        except Exception as e:
+            print(f"wx_callback main_server login/unionid failed (attempt {attempt}): {e}")
+        if attempt < MAIN_SERVER_LOGIN_RETRIES:
+            time.sleep(MAIN_SERVER_LOGIN_RETRY_INTERVAL)
+    return ""
+
+
 @app.get("/htz-api-pyservice/api/v1/wx/callback", response_class=HTMLResponse)
 def wx_callback(code: str = "", state: str = ""):
     """微信网站应用 OAuth 回调：用 code 直接换取用户信息，更新 session"""
     print(f"wx_callback code={code} state={state}")
     if not code or not state:
-        return "<html><head><meta charset='utf-8'></head><body><p>参数错误</p></body></html>"
+        return _wx_callback_page("❌", "参数错误", "请回到 APP 刷新二维码后重试")
 
     try:
         # 1. 用公众号 appid + appsecret 换取 access_token + openid
         appid, appsecret = _get_gzh_aksk()
         if not appsecret:
             print("wx_callback: appsecret not configured")
-            return "<html><head><meta charset='utf-8'></head><body><p>服务配置错误</p></body></html>"
+            return _wx_callback_page("❌", "服务配置错误", "请稍后再试")
 
         token_qs = urllib.parse.urlencode({
             "appid": appid, "secret": appsecret,
@@ -514,45 +564,22 @@ def wx_callback(code: str = "", state: str = ""):
             print(f"wx_callback upsert_user_wechat error: {e}")
 
         # 4. 调主服务器 post/login/unionid，用完整 WeixinLoginResp 创建/更新用户并获取 token
-        token = ""
-        try:
-            req_data = json.dumps(user_info, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                "http://39.105.174.143:9100/post/login/unionid",
-                data=req_data, headers={"Content-Type": "application/json"}
-            )
-            with urllib.request.urlopen(req, timeout=10) as r:
-                login_resp = json.loads(r.read())
-            print(f"wx_callback main_server resp code={login_resp.get('code')}")
-            if login_resp.get("code") == 200:
-                token = login_resp.get("data", {}).get("token", "")
-                print(f"wx_callback got token from main server unionid={user_info.get('unionid')}")
-        except Exception as e:
-            print(f"wx_callback main_server login/unionid failed: {e}")
-
+        token = _fetch_main_server_token(user_info)
         if not token:
-            token = uuid.uuid4().hex
-            print(f"wx_callback fallback uuid token")
+            # 换不到 token 就不能确认这次登录：宁可让用户重扫一次，也不能放一个
+            # 主服务端不认的 token 进 App（见 _fetch_main_server_token 的说明）。
+            print(f"wx_callback no token from main server, expire session={state}")
+            expire_qr_session(state)
+            return _wx_callback_page("❌", "登录失败", "请回到 APP 刷新二维码后重试")
 
         # 5. 更新会话状态
         confirm_qr_session(state, token, json.dumps(user_info, ensure_ascii=False))
         print(f"wx_callback confirmed session={state}")
-        return """
-<html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{display:flex;justify-content:center;align-items:center;height:100vh;
-margin:0;font-family:sans-serif;background:#f5f5f5;}
-.box{text-align:center;padding:40px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.1);}
-.icon{font-size:48px;}.msg{margin-top:16px;font-size:18px;color:#333;}
-.tip{margin-top:8px;font-size:14px;color:#999;}</style></head>
-<body><div class="box"><div class="icon">✅</div>
-<div class="msg">授权成功</div>
-<div class="tip">请返回 APP 继续操作</div></div></body></html>
-"""
+        return _wx_callback_page("✅", "授权成功", "请返回 APP 继续操作")
     except Exception as e:
         print(f"wx_callback error: {e}")
         expire_qr_session(state)
-        return "<html><head><meta charset='utf-8'></head><body><p>授权失败，请重试</p></body></html>"
+        return _wx_callback_page("❌", "授权失败", "请回到 APP 刷新二维码后重试")
 
 
 # ===== 网页管理后台 =====
