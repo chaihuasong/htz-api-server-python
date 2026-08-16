@@ -1,3 +1,5 @@
+from typing import List
+
 from pydantic import BaseModel
 
 class RequestItem(BaseModel):
@@ -22,7 +24,10 @@ class AppUsageItem(BaseModel):
     user_id: str = ""
     date: str
     open_count: int = 0
+    # 前台停留时长
     duration_ms: int = 0
+    # 实际播放音频的时长，首页「学习时长」用的就是这份
+    play_duration_ms: int = 0
     version: str = ""
     pkg: str = ""
     phone_model: str = ""
@@ -60,6 +65,11 @@ class NotificationItem(BaseModel):
 class NotificationQueryItem(BaseModel):
     page_index: int = 0
     page_size: int = 500
+
+# 客户端上报「听完过的条目」，换设备后靠它还原首页的完成课程数
+class CompletedItemsReport(BaseModel):
+    user_id: str
+    item_ids: List[str] = []
 
 class UserTelephoneUpdateItem(BaseModel):
     unionid: str

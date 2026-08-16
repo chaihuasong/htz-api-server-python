@@ -593,26 +593,73 @@ def init_app_usage_table():
                 phone_model TEXT DEFAULT '',
                 os_version TEXT DEFAULT '',
                 created_at TEXT,
-                UNIQUE(device_id, date)
+                UNIQUE(device_id, user_id, date)
             )
         """)
         # 兼容旧表，补充新列
-        for col, definition in [("phone_model", "TEXT DEFAULT ''"), ("os_version", "TEXT DEFAULT ''"), ("network_type", "TEXT DEFAULT ''"), ("source", "TEXT DEFAULT ''"), ("engineering_model", "TEXT DEFAULT ''")]:
+        for col, definition in [("phone_model", "TEXT DEFAULT ''"), ("os_version", "TEXT DEFAULT ''"), ("network_type", "TEXT DEFAULT ''"), ("source", "TEXT DEFAULT ''"), ("engineering_model", "TEXT DEFAULT ''"), ("play_duration_ms", "INTEGER DEFAULT 0")]:
             try:
                 cursor.execute(f"ALTER TABLE app_usage ADD COLUMN {col} {definition}")
             except Exception:
                 pass  # 列已存在则忽略
+        _migrate_app_usage_unique_key(cursor)
+
+def _migrate_app_usage_unique_key(cursor):
+    """
+    唯一键从 (device_id, date) 改成 (device_id, user_id, date)。
+
+    学习时长要按用户回灌到客户端，一台设备上换过账号的话，旧的唯一键会让两个账号
+    当天的数据互相覆盖。SQLite 改不了约束，只能建新表搬数据。
+    """
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='app_usage'")
+    row = cursor.fetchone()
+    if row is None:
+        return
+    table_sql = (row[0] or "").replace(" ", "")
+    if "UNIQUE(device_id,date)" not in table_sql:
+        return  # 已经是新结构
+
+    cursor.execute("PRAGMA table_info(app_usage)")
+    columns = [r[1] for r in cursor.fetchall() if r[1] != "id"]
+    column_list = ", ".join(columns)
+    cursor.execute("DROP TABLE IF EXISTS app_usage_old")
+    cursor.execute("ALTER TABLE app_usage RENAME TO app_usage_old")
+    cursor.execute("""
+        CREATE TABLE app_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            user_id TEXT DEFAULT '',
+            date TEXT NOT NULL,
+            open_count INTEGER DEFAULT 0,
+            duration_ms INTEGER DEFAULT 0,
+            play_duration_ms INTEGER DEFAULT 0,
+            version TEXT DEFAULT '',
+            pkg TEXT DEFAULT '',
+            phone_model TEXT DEFAULT '',
+            engineering_model TEXT DEFAULT '',
+            os_version TEXT DEFAULT '',
+            network_type TEXT DEFAULT '',
+            source TEXT DEFAULT '',
+            created_at TEXT,
+            UNIQUE(device_id, user_id, date)
+        )
+    """)
+    cursor.execute(f"INSERT INTO app_usage ({column_list}) SELECT {column_list} FROM app_usage_old")
+    cursor.execute("DROP TABLE app_usage_old")
+    print("app_usage unique key migrated to (device_id, user_id, date)")
 
 def save_app_usage(item: AppUsageItem):
     formatted_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with get_cursor() as cursor:
         cursor.execute("""
-            INSERT INTO app_usage (device_id, user_id, date, open_count, duration_ms, version, pkg, phone_model, engineering_model, os_version, network_type, source, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(device_id, date) DO UPDATE SET
+            INSERT INTO app_usage (device_id, user_id, date, open_count, duration_ms, play_duration_ms, version, pkg, phone_model, engineering_model, os_version, network_type, source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(device_id, user_id, date) DO UPDATE SET
                 open_count = MAX(app_usage.open_count, excluded.open_count),
                 duration_ms = MAX(app_usage.duration_ms, excluded.duration_ms),
-                user_id = CASE WHEN excluded.user_id != '' THEN excluded.user_id ELSE app_usage.user_id END,
+                -- 客户端上报的是本设备当日累计值，取 MAX 保证重复上报幂等；
+                -- 用户清过数据后本地归零，也不会把服务端已有的时长抹掉
+                play_duration_ms = MAX(app_usage.play_duration_ms, excluded.play_duration_ms),
                 version = CASE WHEN excluded.version != '' THEN excluded.version ELSE app_usage.version END,
                 pkg = CASE WHEN excluded.pkg != '' THEN excluded.pkg ELSE app_usage.pkg END,
                 phone_model = CASE WHEN excluded.phone_model != '' THEN excluded.phone_model ELSE app_usage.phone_model END,
@@ -622,7 +669,7 @@ def save_app_usage(item: AppUsageItem):
                 source = CASE WHEN excluded.source != '' THEN excluded.source ELSE app_usage.source END,
                 created_at = excluded.created_at
         """, (item.device_id, item.user_id, item.date, item.open_count,
-              item.duration_ms, item.version, item.pkg, item.phone_model, item.engineering_model, item.os_version, item.network_type, item.source, formatted_time))
+              item.duration_ms, item.play_duration_ms, item.version, item.pkg, item.phone_model, item.engineering_model, item.os_version, item.network_type, item.source, formatted_time))
 
 def save_app_usage_batch(items: list):
     for item in items:
@@ -641,6 +688,59 @@ def get_all_app_usage():
             LIMIT 1000
         """)
         return _rows_to_list(cursor.fetchall())
+
+# ===== 学习统计（跨设备找回）=====
+
+def get_user_daily_play_duration(user_id: str):
+    """
+    某个用户每天的实际播放时长，按 unionid 聚合各台设备。
+
+    客户端换设备或清了数据之后靠这份数据把首页的学习时长找回来。
+    """
+    if not user_id:
+        return []
+    with get_cursor() as cursor:
+        cursor.execute("""
+            SELECT date, COALESCE(SUM(play_duration_ms), 0) AS play_duration_ms
+            FROM app_usage
+            WHERE user_id = ?
+            GROUP BY date
+            ORDER BY date DESC
+        """, (user_id,))
+        return [{"date": row[0], "play_duration_ms": row[1]} for row in cursor.fetchall()]
+
+def init_completed_item_table():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_completed_item (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                sutra_item_id TEXT NOT NULL,
+                created_at TEXT,
+                UNIQUE(user_id, sutra_item_id)
+            )
+        """)
+
+def save_completed_items(user_id: str, item_ids: list):
+    """记下用户听完过的条目。只增不删，重复上报忽略。"""
+    if not user_id or not item_ids:
+        return 0
+    formatted_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.executemany("""
+            INSERT OR IGNORE INTO user_completed_item (user_id, sutra_item_id, created_at)
+            VALUES (?, ?, ?)
+        """, [(user_id, item_id, formatted_time) for item_id in item_ids if item_id])
+        return cursor.rowcount
+
+def get_completed_items(user_id: str):
+    if not user_id:
+        return []
+    with get_cursor() as cursor:
+        cursor.execute("""
+            SELECT sutra_item_id FROM user_completed_item WHERE user_id = ?
+        """, (user_id,))
+        return [row[0] for row in cursor.fetchall()]
 
 # ===== 手机型号映射操作 =====
 

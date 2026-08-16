@@ -13,7 +13,7 @@ import urllib.parse
 import threading
 from datetime import datetime
 
-from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, PhoneModelMappingItem, UserSyncItem
+from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, PhoneModelMappingItem, UserSyncItem, CompletedItemsReport
 from db import *
 from typing import List
 
@@ -98,6 +98,7 @@ init_feedback_table()
 init_notification_table()
 init_phone_model_mapping_table()
 init_user_info_table()
+init_completed_item_table()
 init_gray_release_table()
 
 @app.exception_handler(RequestValidationError)
@@ -292,6 +293,28 @@ def usage_summary():
 @app.get("/htz-api-pyservice/api/v1/usage/phone-model-stats")
 def usage_phone_model_stats():
     result = get_phone_model_stats()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+# ===== 学习统计 API（换设备/清数据后找回）=====
+@app.get("/htz-api-pyservice/api/v1/study/duration")
+def study_duration(user_id: str):
+    """按 unionid 返回每天的实际播放时长，已跨设备汇总"""
+    result = get_user_daily_play_duration(user_id)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.post("/htz-api-pyservice/api/v1/study/completed/report")
+def study_completed_report(item: CompletedItemsReport):
+    print(f"study_completed_report: user={item.user_id} count={len(item.item_ids)}")
+    try:
+        save_completed_items(item.user_id, item.item_ids)
+    except Exception as e:
+        print(f"study_completed_report error: {e}")
+        return JSONResponse({"code": "500", "msg": str(e), "data": "null"})
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.get("/htz-api-pyservice/api/v1/study/completed")
+def study_completed(user_id: str):
+    result = get_completed_items(user_id)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 # ===== 意见反馈 API =====
