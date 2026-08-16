@@ -693,8 +693,14 @@ def delete_phone_model_mapping(id: int):
 
 # ===== 灰度发布操作 =====
 
-# 灰度期间允许升级、并且有权确认全量的手机号白名单
-GRAY_RELEASE_PHONES = ["13585863020"]
+# 灰度期间允许升级、并且有权确认全量的手机号白名单。
+# 全量放开要求**白名单里的每个人**都确认过同一个版本，任何一个没确认就还在灰度中。
+GRAY_RELEASE_PHONES = [
+    "13585863020",
+    "13661513013",
+    "13632946727",
+    "13294102614",
+]
 
 def init_gray_release_table():
     """gray_release 只记录「已确认全量」的版本，没有记录即表示该版本仍在灰度中。"""
@@ -706,6 +712,17 @@ def init_gray_release_table():
                 promoted_by TEXT DEFAULT '',
                 promoted_phone TEXT DEFAULT '',
                 promoted_at TEXT
+            )
+        """)
+        # 每位管理员对某个版本的确认各记一行，凑齐全部白名单才写 gray_release
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gray_release_confirm (
+                version_code INTEGER NOT NULL,
+                telephone TEXT NOT NULL,
+                version_name TEXT DEFAULT '',
+                unionid TEXT DEFAULT '',
+                confirmed_at TEXT,
+                PRIMARY KEY (version_code, telephone)
             )
         """)
 
@@ -731,6 +748,32 @@ def get_max_released_version() -> int:
         row = cursor.fetchone()
     return int(row["max_version"]) if row and row["max_version"] is not None else 0
 
+def record_release_confirm(version_code: int, version_name: str, unionid: str, telephone: str):
+    """登记一位管理员对某个版本的确认，重复确认幂等。"""
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO gray_release_confirm (version_code, telephone, version_name, unionid, confirmed_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(version_code, telephone) DO UPDATE SET
+                version_name = excluded.version_name,
+                unionid = excluded.unionid,
+                confirmed_at = excluded.confirmed_at
+        """, (version_code, (telephone or "").strip(), version_name or "", unionid or "", now))
+
+def get_release_confirm_phones(version_code: int) -> list:
+    """某版本已确认、且当前仍在白名单里的手机号。白名单调整后，已离任管理员的确认不再算数。"""
+    with get_cursor() as cursor:
+        cursor.execute("SELECT telephone FROM gray_release_confirm WHERE version_code=?",
+                       (version_code,))
+        rows = cursor.fetchall()
+    confirmed = {(row["telephone"] or "").strip() for row in rows}
+    return [phone for phone in GRAY_RELEASE_PHONES if phone in confirmed]
+
+def is_release_fully_confirmed(version_code: int) -> bool:
+    """白名单里每个人都确认过，才算通过验收。"""
+    return len(get_release_confirm_phones(version_code)) >= len(GRAY_RELEASE_PHONES)
+
 def promote_release(version_code: int, version_name: str, unionid: str, telephone: str):
     """把某个版本标记为已全量放开，重复确认视为幂等。"""
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -751,9 +794,10 @@ def get_all_released_versions():
         return _rows_to_list(cursor.fetchall())
 
 def revoke_release(version_code: int):
-    """回退：把版本重新打回灰度状态。"""
+    """回退：把版本重新打回灰度状态，之前的确认票一并作废，需要重新逐个确认。"""
     with get_cursor() as cursor:
         cursor.execute("DELETE FROM gray_release WHERE version_code=?", (version_code,))
+        cursor.execute("DELETE FROM gray_release_confirm WHERE version_code=?", (version_code,))
 
 def enrich_phone_model(phone_model: str, engineering_model: str = "", mappings: dict = None) -> str:
     """根据 phone_model 或 engineering_model 查找对应的营销型号，没找到返回 None"""

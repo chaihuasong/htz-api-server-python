@@ -617,7 +617,8 @@ def phone_model_mapping_delete(id: int):
 
 # ===== 灰度发布 =====
 # 新版本发布后默认处于灰度状态，只有白名单手机号的用户能收到升级提示；
-# 白名单用户验证通过后在 App 内点「确认发布」，该版本才对所有人放开。
+# 白名单里的**每一位**管理员都在 App 内点过「确认发布」之后，该版本才对所有人放开，
+# 只要还有人没确认就一直留在灰度中。
 #
 # 白名单认的是手机号，手机号要拿 unionid 去 user_info 里查。客户端 header 里的 token 是
 # 主服务端签发的 UUID、不是 unionid，所以必须用单独的 unionid 头，token 只作为老客户端的兜底。
@@ -627,28 +628,43 @@ def release_status(version_code: int, token: str = Header(default=""),
                    unionid: str = Header(default="")):
     """客户端查询某个版本是否已全量放开，同时下发白名单供客户端判断入口可见性。"""
     telephone = get_user_telephone(unionid or token)
+    confirmed_phones = get_release_confirm_phones(version_code)
     result = {
         "version_code": version_code,
         "released": is_version_released(version_code),
         "max_released_version": get_max_released_version(),
         "gray_phones": GRAY_RELEASE_PHONES,
         "is_gray_user": is_gray_phone(telephone),
+        # 确认进度：凑齐 required_count 票才会真正全量放开
+        "confirmed_count": len(confirmed_phones),
+        "required_count": len(GRAY_RELEASE_PHONES),
+        "confirmed_by_me": bool(telephone) and telephone.strip() in confirmed_phones,
     }
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 @app.post("/htz-api-pyservice/api/v1/release/promote")
 def release_promote(version_code: int = Body(...), version_name: str = Body(default=""),
                     token: str = Header(default=""), unionid: str = Header(default="")):
-    """确认发布：把灰度版本放开给全量用户。仅白名单手机号可操作。"""
+    """确认发布：登记一票确认，白名单里所有人都确认过之后才真正放开给全量用户。仅白名单手机号可操作。"""
     user_key = unionid or token
     telephone = get_user_telephone(user_key)
     if not is_gray_phone(telephone):
         print(f"release_promote denied: user_key={user_key} telephone={telephone}")
         return JSONResponse({"code": "403", "msg": "无权限确认发布", "data": None})
-    promote_release(version_code, version_name, user_key, telephone)
-    print(f"release_promote ok: version_code={version_code} by {telephone}")
+
+    record_release_confirm(version_code, version_name, user_key, telephone)
+    confirmed_count = len(get_release_confirm_phones(version_code))
+    required_count = len(GRAY_RELEASE_PHONES)
+    released = is_release_fully_confirmed(version_code)
+    if released:
+        promote_release(version_code, version_name, user_key, telephone)
+    print(f"release_promote ok: version_code={version_code} by {telephone} "
+          f"confirmed={confirmed_count}/{required_count} released={released}")
     return JSONResponse({"code": "0", "msg": "SUCCESS",
-                         "data": {"version_code": version_code, "released": True}})
+                         "data": {"version_code": version_code,
+                                  "released": released,
+                                  "confirmed_count": confirmed_count,
+                                  "required_count": required_count}})
 
 @app.get("/htz-api-pyservice/api/v1/release/list")
 def release_list():
