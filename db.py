@@ -59,20 +59,44 @@ def init_log_info_table():
                 type TEXT DEFAULT '',
                 info TEXT DEFAULT '',
                 time TEXT DEFAULT '',
-                user TEXT DEFAULT ''
+                user TEXT DEFAULT '',
+                unionid TEXT
             )
         """)
         # 为常用查询列创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_info_pkg ON log_info(pkg)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_info_time ON log_info(time)")
+        # 补列：**不能带 DEFAULT ''**，存量行必须留成 NULL 才能和「新客户端报的未登录」区分开
+        try:
+            cursor.execute("ALTER TABLE log_info ADD COLUMN unionid TEXT")
+        except Exception:
+            pass  # 列已存在则忽略
 
 def save_log_info(request_item: RequestItem):
     with get_cursor() as cursor:
         cursor.execute("""
-            INSERT INTO log_info (pkg, version, phone, type, info, time, user)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO log_info (pkg, version, phone, type, info, time, user, unionid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (request_item.pkg, request_item.version, request_item.phone,
-              request_item.type, request_item.info, request_item.time, request_item.user))
+              request_item.type, request_item.info, request_item.time,
+              request_item.user, request_item.unionid))
+
+# 日志归属到人的口径，列表和详情共用一份，避免两处走岔。
+#
+# 历史包袱：老客户端 user 字段传的是**昵称**，服务端却一直拿它去 JOIN user_info.unionid，
+# JOIN 从来没命中过；昵称为空（微信现在大量返回空昵称）时又被判成「未登录」，
+# 于是后台显示未登录的其实全是已登录用户。现在身份只认 unionid：
+#   unionid 非空  → 已登录，取昵称，昵称为空就退回 unionid
+#   unionid = ''  → 新客户端明确报的未登录
+#   unionid IS NULL → 老客户端没传这个字段，只能拿昵称顶着显示；
+#                     昵称也为空时是真的判不出来，标成「未知」而不是冒充「未登录」
+_LOG_USER_NAME_SQL = """
+    CASE WHEN l.unionid IS NOT NULL AND l.unionid != ''
+              THEN COALESCE(NULLIF(u.nickname, ''), l.unionid)
+         WHEN l.unionid = '' THEN '未登录'
+         WHEN l.user != '' THEN l.user
+         ELSE '未知(旧版本)' END
+"""
 
 def upsert_user_wechat(wechat_user_info: dict):
     """微信扫码回调中直接写入/更新用户信息（upsert），避免 App 端崩溃导致数据丢失"""
@@ -161,12 +185,10 @@ def get_all_logs():
         cursor.execute(f"""
             SELECT l.id, l.pkg, l.version, l.phone, l.type,
                    SUBSTR(l.info, 1, {LOG_INFO_TRUNCATE_LENGTH}) || CASE WHEN LENGTH(l.info) > {LOG_INFO_TRUNCATE_LENGTH} THEN '...' ELSE '' END as info,
-                   l.time, l.user,
-                   CASE WHEN l.user = '' THEN '未登录'
-                        WHEN u.nickname IS NULL OR u.nickname = '' THEN l.user
-                        ELSE u.nickname END as user_name
+                   l.time, l.user, l.unionid,
+                   {_LOG_USER_NAME_SQL} as user_name
             FROM log_info l
-            LEFT JOIN user_info u ON l.user = u.unionid
+            LEFT JOIN user_info u ON u.unionid = l.unionid
             ORDER BY l.id DESC
             LIMIT 500
         """)
@@ -174,13 +196,11 @@ def get_all_logs():
 
 def get_log_detail(log_id: int):
     with get_cursor() as cursor:
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT l.*,
-                   CASE WHEN l.user = '' THEN '未登录'
-                        WHEN u.nickname IS NULL OR u.nickname = '' THEN l.user
-                        ELSE u.nickname END as user_name
+                   {_LOG_USER_NAME_SQL} as user_name
             FROM log_info l
-            LEFT JOIN user_info u ON l.user = u.unionid
+            LEFT JOIN user_info u ON u.unionid = l.unionid
             WHERE l.id=?
         """, (log_id,))
         return _row_to_dict(cursor.fetchone())

@@ -130,9 +130,14 @@ init_gray_release_table()
 async def validation_exception_handler(request, exc):
     """
     handle the exception of incorrect request parameter
+
+    HTTP 状态码必须跟着 body 里的 code 一起是 4xx。以前这里返回的是默认的 200，
+    客户端 postEnsureSuccess() 只看状态码，参数不合法时也当成上报成功，
+    转手就把本地的崩溃现场删了 / 把 ANR 水位线推了过去，日志两头都不落。
     """
     logger.error(exc)
-    return JSONResponse({"code": "422", "msg": "bad request parameter", "data": None})
+    return JSONResponse({"code": "422", "msg": "bad request parameter", "data": None},
+                        status_code=422)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):

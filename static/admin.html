@@ -1052,6 +1052,7 @@
                 (l.info || '').toLowerCase().includes(keyword) ||
                 (l.type || '').toLowerCase().includes(keyword) ||
                 (l.user || '').toLowerCase().includes(keyword) ||
+                (l.unionid || '').toLowerCase().includes(keyword) ||
                 (l.user_name || '').toLowerCase().includes(keyword)
             );
             renderLogs(filtered);
@@ -1072,8 +1073,9 @@
                     document.getElementById('log-detail').innerHTML = '<div style="text-align:center;padding:40px;color:#999">未找到日志记录</div>';
                     return;
                 }
-                const userFields = ['user', 'user_name'];
-                const fieldLabelMap = { user: '用户标识', user_name: '用户名' };
+                const userFields = ['user', 'unionid', 'user_name'];
+                // user 是客户端传上来的昵称（老版本只有这个），unionid 才是身份
+                const fieldLabelMap = { user: '昵称(上报值)', unionid: 'unionid', user_name: '用户名' };
                 document.getElementById('log-detail').innerHTML = `
                     <table style="width:100%">
                         ${Object.entries(item).map(([k, v]) => {

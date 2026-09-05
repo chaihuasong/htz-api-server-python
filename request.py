@@ -1,15 +1,26 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
 class RequestItem(BaseModel):
-    pkg: str
-    version: str
-    phone: str
-    type: str
-    info: str
-    time: str
-    user: str
+    """崩溃 / ANR 日志上报。
+
+    字段全部给默认值：缺一个就把整条日志丢掉不值当，日志本来就是出问题时才发的。
+    """
+    pkg: str = ""
+    version: str = ""
+    phone: str = ""
+    type: str = ""
+    info: str = ""
+    time: str = ""
+    # 老客户端（<= 2.0.x）这里传的是**昵称**，新客户端传的也是昵称、身份看 unionid。
+    # 后台展示逻辑见 db.py 的 _LOG_USER_NAME_SQL。
+    user: str = ""
+    # 用户身份。**None 和 "" 含义不同，不要给它改成 str = ""**：
+    #   None = 老客户端根本没传这个字段，无从判断登录状态
+    #   ""   = 新客户端传了，且当时确实未登录
+    # 混在一起的话，未登录和「已登录但昵称为空」在后台又会分不出来。
+    unionid: Optional[str] = None
 
 class AkskRequestItem(BaseModel):
     id: int = None
