@@ -151,6 +151,9 @@ def get_log_info(pkg: str):
         data = _rows_to_list(result)
     return json.dumps(data, indent=4)
 
+# 保持 500：后台搜索是前端对已截断的 info 做匹配（admin.html filterLogs），
+# 调小会让堆栈里 150 字符之后的异常信息搜不到。响应体大小已由 gzip 解决（343KB→12KB），
+# 再截到 150 只省 6KB，不值得拿搜索范围换。
 LOG_INFO_TRUNCATE_LENGTH = 500
 
 def get_all_logs():

@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, Body
 from fastapi.exceptions  import RequestValidationError
 from fastapi.responses  import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.gzip import GZipMiddleware
 import logging
 import os
 import uuid
@@ -76,6 +77,30 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
 
 app = FastAPI()
+
+# 服务器出口带宽有限（实测 ~120KB/s），后台列表接口返回的 JSON 重复度极高，
+# gzip 后体积能降到约 1/28，是后台刷新慢的主因。也顺带压缩 admin.html。
+class SelectiveGZipMiddleware:
+    """只对接口和页面做 gzip，跳过 /static。
+
+    /static 下是意见反馈上传的图片和视频，本身已压缩，gzip 收益为零白费 CPU；
+    更要紧的是后台 <video> 拖进度条会发 Range 请求，压缩 206 会让 Content-Length
+    （压缩后大小）和 Content-Range（原始字节区间）对不上，属于不规范的组合。
+    fastapi 0.110 带的 starlette 0.36 还没有按 content-type 排除的参数，所以按路径挡。
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self.gzip_app = GZipMiddleware(app, minimum_size=1000)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and not scope["path"].startswith("/static"):
+            await self.gzip_app(scope, receive, send)
+        else:
+            await self.app(scope, receive, send)
+
+
+app.add_middleware(SelectiveGZipMiddleware)
 
 # ===== 静态文件 =====
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")

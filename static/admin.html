@@ -476,6 +476,15 @@
         const API_BASE = '/htz-api-pyservice/api/v1';
         let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [], phonemodelData = [];
 
+        // 日志表有几百行，每敲一个键就整表 innerHTML 重建一次，输入时会明显卡顿。
+        function debounce(fn, wait) {
+            let timer = null;
+            return function (...args) {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn.apply(this, args), wait);
+            };
+        }
+
         // 切换标签
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1036,7 +1045,7 @@
             `).join('');
         }
 
-        function filterLogs() {
+        const filterLogsDebounced = debounce(function () {
             const keyword = document.getElementById('log-search').value.toLowerCase();
             const filtered = logsData.filter(l =>
                 (l.pkg || '').toLowerCase().includes(keyword) ||
@@ -1046,6 +1055,10 @@
                 (l.user_name || '').toLowerCase().includes(keyword)
             );
             renderLogs(filtered);
+        }, 150);
+
+        function filterLogs() {
+            filterLogsDebounced();
         }
 
         async function showLogDetail(id) {
