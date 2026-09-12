@@ -1,3 +1,8 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# SQLite 数据库及 WAL 模式产生的临时文件，线上数据不进仓库
+htz.db
+htz.db-shm
+htz.db-wal
