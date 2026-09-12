@@ -67,6 +67,22 @@
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #666; }
         .legend-dot { width: 12px; height: 12px; border-radius: 2px; }
         .section-title { font-size: 16px; font-weight: 500; margin: 24px 0 12px; color: #333; }
+        /* 用量详情弹窗 */
+        .link-cell { color: #1976d2; cursor: pointer; border-bottom: 1px dashed rgba(25,118,210,0.45); }
+        .link-cell:hover { color: #0d47a1; border-bottom-style: solid; }
+        .detail-body { max-height: 64vh; overflow-y: auto; }
+        .detail-body table { margin-top: 8px; }
+        .detail-body th, .detail-body td { padding: 8px 10px; font-size: 13px; }
+        .detail-body .section-title { margin: 20px 0 4px; font-size: 15px; }
+        .detail-profile { display: flex; gap: 14px; align-items: center; padding: 14px 16px; background: #fafafa; border-radius: 8px; }
+        .detail-profile img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .detail-profile .name { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+        .detail-profile .meta { font-size: 12px; color: #888; line-height: 1.7; word-break: break-all; }
+        .mini-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; margin-top: 14px; }
+        .mini-stat { background: #f3f6fb; border-radius: 6px; padding: 10px 12px; }
+        .mini-stat .mini-value { font-size: 17px; font-weight: 600; color: #1976d2; }
+        .mini-stat .mini-value.mini-value-sm { font-size: 13px; line-height: 1.5; }
+        .mini-stat .mini-label { font-size: 12px; color: #888; margin-top: 2px; }
         /* 登录页 */
         .login-overlay { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); justify-content: center; align-items: center; z-index: 9999; }
         .login-overlay.hidden { display: none; }
@@ -440,6 +456,17 @@
             <div id="log-detail" style="max-height: 400px; overflow-y: auto;"></div>
             <div class="modal-footer">
                 <button type="button" class="btn" onclick="closeLogModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用量详情弹窗（点用户名或设备ID） -->
+    <div id="usage-detail-modal" class="modal">
+        <div class="modal-content" style="width: 880px;">
+            <div class="modal-header" id="usage-detail-title">用量详情</div>
+            <div id="usage-detail-body" class="detail-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeUsageDetailModal()">关闭</button>
             </div>
         </div>
     </div>
@@ -1288,9 +1315,15 @@
             tbody.innerHTML = data.map(item => `
                 <tr>
                     <td>${item.id}</td>
-                    <td><span class="text-truncate" title="${item.device_id || ''}">${item.device_id || ''}</span></td>
-                    <td>${item.user_id || '-'}</td>
-                    <td>${item.nickname || '-'}</td>
+                    <td>${item.device_id
+                        ? `<span class="text-truncate link-cell" title="${escapeHtml(item.device_id)}" onclick="showUsageDeviceDetail('${jsArg(item.device_id)}')">${escapeHtml(item.device_id)}</span>`
+                        : '-'}</td>
+                    <td>${item.user_id
+                        ? `<span class="text-truncate link-cell" title="${escapeHtml(item.user_id)}" onclick="showUsageUserDetail('${jsArg(item.user_id)}')">${escapeHtml(item.user_id.substring(0, 12))}…</span>`
+                        : '<span style="color:#999">未登录</span>'}</td>
+                    <td>${item.user_id
+                        ? `<span class="link-cell" onclick="showUsageUserDetail('${jsArg(item.user_id)}')">${escapeHtml(usageNickname(item.nickname))}</span>`
+                        : '-'}</td>
                     <td>${item.date || ''}</td>
                     <td>${item.open_count || 0}</td>
                     <td>${formatDuration(item.duration_ms || 0)}</td>
@@ -1318,6 +1351,230 @@
                 (u.engineering_model || '').toLowerCase().includes(keyword)
             );
             renderUsage(filtered);
+        }
+
+        // ===== 用量详情弹窗 =====
+        // onclick 里要带字符串参数，先转义 JS 引号再转义 HTML，免得设备ID里的怪字符把属性截断。
+        // device_id / unionid 都是客户端上报的裸字符串，换行不转义的话 onclick 会直接语法错误
+        function jsArg(value) {
+            const escaped = String(value || '')
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/\r/g, '\\r')
+                .replace(/\n/g, '\\n')
+                .replace(/\u2028/g, '\\u2028')
+                .replace(/\u2029/g, '\\u2029');
+            return escapeHtml(escaped);
+        }
+
+        // 两个弹窗共用一个 DOM，连点两个用户时慢的那个请求会盖掉快的，用序号把过期结果丢掉
+        let usageDetailSeq = 0;
+
+        // 用量列表接口对没昵称的用户回 '-'，弹窗和表格里统一显示成「微信用户」
+        function usageNickname(nickname) {
+            return nickname && nickname !== '-' ? nickname : '微信用户';
+        }
+
+        function openUsageDetailModal(title, html) {
+            document.getElementById('usage-detail-title').textContent = title;
+            document.getElementById('usage-detail-body').innerHTML = html;
+            document.getElementById('usage-detail-modal').classList.add('show');
+        }
+
+        function closeUsageDetailModal() {
+            document.getElementById('usage-detail-modal').classList.remove('show');
+        }
+
+        function renderMiniStats(pairs) {
+            return `<div class="mini-stats">${pairs.map(([value, label, small]) =>
+                `<div class="mini-stat"><div class="mini-value${small ? ' mini-value-sm' : ''}">${value}</div><div class="mini-label">${label}</div></div>`
+            ).join('')}</div>`;
+        }
+
+        function renderModelCell(row) {
+            if (!row.phone_model) return '-';
+            const marketing = row.marketing_model
+                ? `<br><span style="font-size:11px;color:#1976d2">→ ${escapeHtml(row.marketing_model)}</span>` : '';
+            return `<span class="text-truncate" title="${escapeHtml(row.phone_model)}">${escapeHtml(row.phone_model)}</span>${marketing}`;
+        }
+
+        // 按天明细，用户详情多一列设备数（同一天可能在多台设备上用）
+        function renderUsageDailyTable(daily, showDevices) {
+            if (!daily || daily.length === 0) return '<div class="empty">暂无每日记录</div>';
+            return `
+                <table>
+                    <thead><tr>
+                        <th>日期</th>
+                        ${showDevices ? '<th>设备数</th>' : ''}
+                        <th>打开次数</th><th>前台使用</th><th>播放时长</th>
+                    </tr></thead>
+                    <tbody>
+                        ${daily.map(r => `<tr>
+                            <td>${escapeHtml(r.date)}</td>
+                            ${showDevices ? `<td>${r.devices || 0}</td>` : ''}
+                            <td>${r.open_count || 0}</td>
+                            <td>${formatDuration(r.duration_ms || 0)}</td>
+                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderUsageRange(s) {
+            if (!s.first_date) return '-';
+            return s.first_date === s.last_date ? escapeHtml(s.last_date)
+                : `${escapeHtml(s.first_date)} ~ ${escapeHtml(s.last_date)}`;
+        }
+
+        async function showUsageUserDetail(userId) {
+            if (!userId) return;
+            const seq = ++usageDetailSeq;
+            openUsageDetailModal('用户用量详情', '<div class="empty">加载中…</div>');
+            let json;
+            try {
+                const res = await fetch(`${API_BASE}/usage/user-detail?user_id=${encodeURIComponent(userId)}`);
+                json = await res.json();
+            } catch (e) {
+                if (seq === usageDetailSeq) openUsageDetailModal('用户用量详情', '<div class="empty">加载失败，请重试</div>');
+                return;
+            }
+            if (seq !== usageDetailSeq) return;
+            const detail = json.data;
+            if (!detail) {
+                openUsageDetailModal('用户用量详情', '<div class="empty">没有查到该用户的记录</div>');
+                return;
+            }
+            const p = detail.profile;
+            const s = detail.summary || {};
+            const region = p ? [p.country, p.province, p.city].filter(Boolean).join(' ') : '';
+            const avatar = p && p.headimgurl
+                ? `<img src="${escapeHtml(p.headimgurl)}" onerror="this.style.display='none'">` : '';
+            const profileHtml = `
+                <div class="detail-profile">
+                    ${avatar}
+                    <div>
+                        <div class="name">${escapeHtml(usageNickname(p && p.nickname))} ${p ? sexLabel(p.sex) : ''}</div>
+                        <div class="meta">
+                            unionid：${escapeHtml(userId)}<br>
+                            手机号：${p && p.telephone ? escapeHtml(p.telephone) : '未绑定'}${region ? ' ｜ 地区：' + escapeHtml(region) : ''}${p && p.note ? ' ｜ 备注：' + escapeHtml(p.note) : ''}<br>
+                            ${p ? '注册：' + escapeHtml(p.create_time || '-') + ' ｜ 最后更新：' + escapeHtml(p.last_update_time || '-')
+                                : '<span style="color:#d32f2f">用户表里查不到这个 unionid，可能账号已删除</span>'}
+                        </div>
+                    </div>
+                </div>`;
+
+            const statsHtml = renderMiniStats([
+                [s.opens || 0, '打开次数'],
+                [formatDuration(s.duration_ms || 0), '前台使用'],
+                [formatDuration(s.play_duration_ms || 0), '播放时长'],
+                [s.devices || 0, '使用设备数'],
+                [s.days || 0, '活跃天数'],
+                [renderUsageRange(s), '活跃区间', true]
+            ]);
+
+            const devices = detail.devices || [];
+            const devicesHtml = devices.length === 0 ? '<div class="empty">暂无设备记录</div>' : `
+                <table>
+                    <thead><tr>
+                        <th>设备ID</th><th>手机型号</th><th>系统版本</th><th>来源</th><th>版本</th>
+                        <th>打开次数</th><th>前台使用</th><th>播放时长</th><th>天数</th><th>最近活跃</th>
+                    </tr></thead>
+                    <tbody>
+                        ${devices.map(r => `<tr>
+                            <td><span class="text-truncate link-cell" title="${escapeHtml(r.device_id)}" onclick="showUsageDeviceDetail('${jsArg(r.device_id)}')">${escapeHtml(r.device_id)}</span></td>
+                            <td>${renderModelCell(r)}</td>
+                            <td>${escapeHtml(r.os_version) || '-'}</td>
+                            <td>${escapeHtml(r.source) || '-'}</td>
+                            <td>${r.version ? `<span class="badge badge-info">${escapeHtml(r.version)}</span>` : '-'}</td>
+                            <td>${r.opens || 0}</td>
+                            <td>${formatDuration(r.duration_ms || 0)}</td>
+                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
+                            <td>${r.days || 0}</td>
+                            <td>${escapeHtml(r.last_date) || '-'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+
+            openUsageDetailModal('用户用量详情', `
+                ${profileHtml}
+                ${statsHtml}
+                <div class="section-title">按设备（${devices.length}）</div>
+                ${devicesHtml}
+                <div class="section-title">按天明细（${(detail.daily || []).length}）</div>
+                ${renderUsageDailyTable(detail.daily, true)}
+            `);
+        }
+
+        async function showUsageDeviceDetail(deviceId) {
+            if (!deviceId) return;
+            const seq = ++usageDetailSeq;
+            openUsageDetailModal('设备用量详情', '<div class="empty">加载中…</div>');
+            let json;
+            try {
+                const res = await fetch(`${API_BASE}/usage/device-detail?device_id=${encodeURIComponent(deviceId)}`);
+                json = await res.json();
+            } catch (e) {
+                if (seq === usageDetailSeq) openUsageDetailModal('设备用量详情', '<div class="empty">加载失败，请重试</div>');
+                return;
+            }
+            if (seq !== usageDetailSeq) return;
+            const detail = json.data;
+            if (!detail) {
+                openUsageDetailModal('设备用量详情', '<div class="empty">没有查到该设备的记录</div>');
+                return;
+            }
+            const s = detail.summary || {};
+            const infoHtml = `
+                <div class="detail-profile">
+                    <div>
+                        <div class="name">${escapeHtml(s.marketing_model || s.phone_model || '未知机型')}</div>
+                        <div class="meta">
+                            设备ID：${escapeHtml(deviceId)}<br>
+                            工程型号：${escapeHtml(s.engineering_model) || '-'} ｜ 上报型号：${escapeHtml(s.phone_model) || '-'} ｜ 系统：${escapeHtml(s.os_version) || '-'}<br>
+                            来源：${escapeHtml(s.source) || '-'} ｜ 网络：${escapeHtml(s.network_type) || '-'} ｜ 版本：${escapeHtml(s.version) || '-'} ｜ 包名：${escapeHtml(s.pkg) || '-'}
+                        </div>
+                    </div>
+                </div>`;
+
+            const statsHtml = renderMiniStats([
+                [s.opens || 0, '打开次数'],
+                [formatDuration(s.duration_ms || 0), '前台使用'],
+                [formatDuration(s.play_duration_ms || 0), '播放时长'],
+                [s.users || 0, '登录账号数'],
+                [s.days || 0, '活跃天数'],
+                [renderUsageRange(s), '活跃区间', true]
+            ]);
+
+            const users = detail.users || [];
+            const usersHtml = users.length === 0 ? '<div class="empty">暂无账号记录</div>' : `
+                <table>
+                    <thead><tr>
+                        <th>用户</th><th>unionid</th><th>打开次数</th><th>前台使用</th><th>播放时长</th><th>天数</th><th>最近活跃</th>
+                    </tr></thead>
+                    <tbody>
+                        ${users.map(r => `<tr>
+                            <td>${r.user_id
+                                ? `<span class="link-cell" onclick="showUsageUserDetail('${jsArg(r.user_id)}')">${escapeHtml(usageNickname(r.nickname))}</span>`
+                                : '<span style="color:#999">未登录</span>'}</td>
+                            <td><span class="text-truncate" title="${escapeHtml(r.user_id)}">${escapeHtml(r.user_id) || '-'}</span></td>
+                            <td>${r.opens || 0}</td>
+                            <td>${formatDuration(r.duration_ms || 0)}</td>
+                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
+                            <td>${r.days || 0}</td>
+                            <td>${escapeHtml(r.last_date) || '-'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+
+            openUsageDetailModal('设备用量详情', `
+                ${infoHtml}
+                ${statsHtml}
+                <div class="section-title">登录过的账号（${users.filter(u => u.user_id).length}）<span style="font-size:12px;color:#999;font-weight:400">　未登录时段单独列在末行</span></div>
+                ${usersHtml}
+                <div class="section-title">按天明细（${(detail.daily || []).length}）</div>
+                ${renderUsageDailyTable(detail.daily, false)}
+            `);
         }
 
         // 初始化加载

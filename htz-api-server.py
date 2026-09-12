@@ -325,6 +325,22 @@ def usage_phone_model_stats():
     result = get_phone_model_stats()
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
+@app.get("/htz-api-pyservice/api/v1/usage/user-detail")
+def usage_user_detail(user_id: str):
+    """后台点用户名弹出的详情：该 unionid 的资料与跨设备用量"""
+    result = get_usage_user_detail(user_id)
+    if result is None:
+        return JSONResponse({"code": "404", "msg": "user usage not found", "data": None})
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.get("/htz-api-pyservice/api/v1/usage/device-detail")
+def usage_device_detail(device_id: str):
+    """后台点设备 ID 弹出的详情：该设备的用量与登录过的账号"""
+    result = get_usage_device_detail(device_id)
+    if result is None:
+        return JSONResponse({"code": "404", "msg": "device usage not found", "data": None})
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
 # ===== 学习统计 API（换设备/清数据后找回）=====
 @app.get("/htz-api-pyservice/api/v1/study/duration")
 def study_duration(user_id: str):

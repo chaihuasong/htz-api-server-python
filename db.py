@@ -626,6 +626,9 @@ def init_app_usage_table():
             except Exception:
                 pass  # 列已存在则忽略
         _migrate_app_usage_unique_key(cursor)
+        # 唯一索引以 device_id 打头，按 user_id 查（学习时长找回、后台用户详情）用不上。
+        # 必须放在迁移之后建：迁移会重建表，先建的索引会跟着旧表一起没掉
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_app_usage_user ON app_usage(user_id)")
 
 def _migrate_app_usage_unique_key(cursor):
     """
@@ -711,6 +714,137 @@ def get_all_app_usage():
             LIMIT 1000
         """)
         return _rows_to_list(cursor.fetchall())
+
+# ===== 用量详情（后台弹窗）=====
+
+def _latest_by_device(column: str, alias: str = "a"):
+    """这台设备最近一次上报的非空值。
+    不能用 MAX()：那是字典序，1.9.0 会压过 1.10.0，Android 9 会压过 Android 10，
+    偏偏升级过的设备才是最想看清楚的。"""
+    return (f"(SELECT x.{column} FROM app_usage x "
+            f"WHERE x.device_id = {alias}.device_id AND x.{column} != '' "
+            f"ORDER BY x.date DESC, x.id DESC LIMIT 1) AS {column}")
+
+
+_USAGE_SUM_COLUMNS = """
+    COALESCE(SUM(open_count), 0) AS opens,
+    COALESCE(SUM(duration_ms), 0) AS duration_ms,
+    COALESCE(SUM(play_duration_ms), 0) AS play_duration_ms,
+    COUNT(DISTINCT date) AS days,
+    MIN(date) AS first_date,
+    MAX(date) AS last_date
+"""
+
+
+def get_usage_user_detail(user_id: str):
+    """
+    后台用量统计里点用户名要看的东西：这个 unionid 的资料 + 跨设备汇总 + 按天、按设备明细。
+
+    同一个人可能在多台设备上登录，列表页每行只是「设备 × 用户 × 日期」的一条，
+    看不出这个人一共学了多久，所以这里按 unionid 把各台设备重新汇总一遍。
+    """
+    if not user_id:
+        return None
+    with get_cursor() as cursor:
+        cursor.execute("""
+            SELECT unionid, nickname, sex, headimgurl, country, province, city,
+                   telephone, note, create_time, last_update_time
+            FROM user_info WHERE unionid = ?
+        """, (user_id,))
+        row = cursor.fetchone()
+        profile = _row_to_dict(row) if row else None
+
+        cursor.execute(f"""
+            SELECT COUNT(DISTINCT device_id) AS devices, {_USAGE_SUM_COLUMNS}
+            FROM app_usage WHERE user_id = ?
+        """, (user_id,))
+        summary = _row_to_dict(cursor.fetchone())
+        if not summary.get("days"):
+            return None if profile is None else {"profile": profile, "summary": summary, "daily": [], "devices": []}
+
+        cursor.execute("""
+            SELECT date,
+                   COUNT(DISTINCT device_id) AS devices,
+                   COALESCE(SUM(open_count), 0) AS open_count,
+                   COALESCE(SUM(duration_ms), 0) AS duration_ms,
+                   COALESCE(SUM(play_duration_ms), 0) AS play_duration_ms
+            FROM app_usage WHERE user_id = ?
+            GROUP BY date ORDER BY date DESC
+        """, (user_id,))
+        daily = _rows_to_list(cursor.fetchall())
+
+        cursor.execute(f"""
+            SELECT a.device_id,
+                   {_latest_by_device("phone_model")},
+                   {_latest_by_device("engineering_model")},
+                   {_latest_by_device("os_version")},
+                   {_latest_by_device("network_type")},
+                   {_latest_by_device("source")},
+                   {_latest_by_device("version")},
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a WHERE a.user_id = ?
+            GROUP BY a.device_id ORDER BY last_date DESC, opens DESC
+        """, (user_id,))
+        devices = _rows_to_list(cursor.fetchall())
+
+    return {
+        "profile": profile,
+        "summary": summary,
+        "daily": daily,
+        "devices": enrich_list_with_marketing_model(devices, "phone_model"),
+    }
+
+
+def get_usage_device_detail(device_id: str):
+    """
+    某台设备的用量详情：机型等固定信息 + 汇总 + 按天明细 + 这台设备上登录过的账号。
+    """
+    if not device_id:
+        return None
+    with get_cursor() as cursor:
+        cursor.execute(f"""
+            SELECT {_latest_by_device("phone_model")},
+                   {_latest_by_device("engineering_model")},
+                   {_latest_by_device("os_version")},
+                   {_latest_by_device("network_type")},
+                   {_latest_by_device("source")},
+                   {_latest_by_device("version")},
+                   {_latest_by_device("pkg")},
+                   COUNT(DISTINCT CASE WHEN a.user_id != '' THEN a.user_id END) AS users,
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a WHERE a.device_id = ?
+        """, (device_id,))
+        summary = _row_to_dict(cursor.fetchone())
+        if not summary.get("days"):
+            return None
+        summary["device_id"] = device_id
+        summary = enrich_list_with_marketing_model([summary], "phone_model")[0]
+
+        cursor.execute("""
+            SELECT date,
+                   COALESCE(SUM(open_count), 0) AS open_count,
+                   COALESCE(SUM(duration_ms), 0) AS duration_ms,
+                   COALESCE(SUM(play_duration_ms), 0) AS play_duration_ms
+            FROM app_usage WHERE device_id = ?
+            GROUP BY date ORDER BY date DESC
+        """, (device_id,))
+        daily = _rows_to_list(cursor.fetchall())
+
+        cursor.execute(f"""
+            SELECT a.user_id,
+                   COALESCE(NULLIF(u.nickname, ''), '') AS nickname,
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a
+            LEFT JOIN user_info u ON a.user_id = u.unionid
+            WHERE a.device_id = ?
+            GROUP BY a.user_id
+            -- 未登录那段固定排在最后，前面的行数才对得上「登录过的账号」个数
+            ORDER BY (a.user_id = '') ASC, last_date DESC, opens DESC
+        """, (device_id,))
+        users = _rows_to_list(cursor.fetchall())
+
+    return {"summary": summary, "daily": daily, "users": users}
+
 
 # ===== 学习统计（跨设备找回）=====
 
