@@ -947,7 +947,8 @@ def get_phone_model_stats():
                 COALESCE(NULLIF(engineering_model, ''), '') as engineering_model,
                 COUNT(DISTINCT device_id) as devices,
                 COALESCE(SUM(open_count), 0) as opens,
-                COALESCE(SUM(duration_ms), 0) as duration_ms
+                COALESCE(SUM(duration_ms), 0) as duration_ms,
+                COALESCE(SUM(play_duration_ms), 0) as play_duration_ms
             FROM app_usage
             GROUP BY phone_model, engineering_model
             ORDER BY opens DESC
@@ -976,9 +977,11 @@ def get_app_usage_summary():
         cursor.execute("SELECT COALESCE(SUM(open_count), 0) FROM app_usage")
         total_opens = cursor.fetchone()[0]
 
-        # 总使用时长
-        cursor.execute("SELECT COALESCE(SUM(duration_ms), 0) FROM app_usage")
-        total_duration = cursor.fetchone()[0]
+        # 总使用时长（前台停留）与总播放时长（含后台/锁屏收听）
+        cursor.execute("SELECT COALESCE(SUM(duration_ms), 0), COALESCE(SUM(play_duration_ms), 0) FROM app_usage")
+        total_row = cursor.fetchone()
+        total_duration = total_row[0]
+        total_play_duration = total_row[1]
 
         # 总使用天数（有记录的日期数）
         cursor.execute("SELECT COUNT(DISTINCT date) FROM app_usage")
@@ -986,15 +989,17 @@ def get_app_usage_summary():
 
         # 今日统计
         today = datetime.now().strftime('%Y-%m-%d')
-        cursor.execute("SELECT COUNT(DISTINCT device_id), COALESCE(SUM(open_count), 0), COALESCE(SUM(duration_ms), 0) FROM app_usage WHERE date=?", (today,))
+        cursor.execute("SELECT COUNT(DISTINCT device_id), COALESCE(SUM(open_count), 0), COALESCE(SUM(duration_ms), 0), COALESCE(SUM(play_duration_ms), 0) FROM app_usage WHERE date=?", (today,))
         today_row = cursor.fetchone()
         today_devices = today_row[0]
         today_opens = today_row[1]
         today_duration = today_row[2]
+        today_play_duration = today_row[3]
 
         # 最近30天每日统计
         cursor.execute("""
-            SELECT date, COUNT(DISTINCT device_id) as devices, SUM(open_count) as opens, SUM(duration_ms) as duration
+            SELECT date, COUNT(DISTINCT device_id) as devices, SUM(open_count) as opens,
+                   SUM(duration_ms) as duration, SUM(play_duration_ms) as play_duration
             FROM app_usage
             WHERE date >= date('now', '-30 days')
             GROUP BY date
@@ -1007,7 +1012,8 @@ def get_app_usage_summary():
             SELECT COALESCE(NULLIF(source, ''), '未知') as source,
                    COUNT(DISTINCT device_id) as devices,
                    COALESCE(SUM(open_count), 0) as opens,
-                   COALESCE(SUM(duration_ms), 0) as duration_ms
+                   COALESCE(SUM(duration_ms), 0) as duration_ms,
+                   COALESCE(SUM(play_duration_ms), 0) as play_duration_ms
             FROM app_usage
             GROUP BY source
             ORDER BY opens DESC
@@ -1019,7 +1025,8 @@ def get_app_usage_summary():
             SELECT COALESCE(NULLIF(source, ''), '未知') as source,
                    COUNT(DISTINCT device_id) as devices,
                    COALESCE(SUM(open_count), 0) as opens,
-                   COALESCE(SUM(duration_ms), 0) as duration_ms
+                   COALESCE(SUM(duration_ms), 0) as duration_ms,
+                   COALESCE(SUM(play_duration_ms), 0) as play_duration_ms
             FROM app_usage
             WHERE date=?
             GROUP BY source
@@ -1031,10 +1038,12 @@ def get_app_usage_summary():
             "total_devices": total_devices,
             "total_opens": total_opens,
             "total_duration_ms": total_duration,
+            "total_play_duration_ms": total_play_duration,
             "total_days": total_days,
             "today_devices": today_devices,
             "today_opens": today_opens,
             "today_duration_ms": today_duration,
+            "today_play_duration_ms": today_play_duration,
             "daily_stats": daily_stats,
             "source_stats": source_stats,
             "today_source_stats": today_source_stats
