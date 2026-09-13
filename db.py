@@ -951,21 +951,13 @@ def delete_phone_model_mapping(id: int):
 # ===== 灰度发布操作 =====
 
 # 灰度期间允许升级、并且有权确认全量的手机号白名单。
+# 全量放开要求**白名单里的每个人**都确认过同一个版本，任何一个没确认就还在灰度中。
 GRAY_RELEASE_PHONES = [
     "13585863020",
     "13661513013",
     "13632946727",
     "13294102614",
 ]
-
-# 全量放开需要的确认票数。原本要求白名单里的每个人都确认，只要有一位管理员没空点，
-# 版本就一直卡在灰度里（线上曾连着三个版本没放开、全量用户停在几个版本之前），
-# 所以改成够票即可，剩下的人不必再点。
-GRAY_RELEASE_REQUIRED_CONFIRMS = 3
-
-def get_required_confirm_count() -> int:
-    """实际需要的票数。白名单人数少于阈值时按人数算，否则永远凑不齐。"""
-    return min(GRAY_RELEASE_REQUIRED_CONFIRMS, len(GRAY_RELEASE_PHONES))
 
 def init_gray_release_table():
     """gray_release 只记录「已确认全量」的版本，没有记录即表示该版本仍在灰度中。"""
@@ -979,7 +971,7 @@ def init_gray_release_table():
                 promoted_at TEXT
             )
         """)
-        # 每位管理员对某个版本的确认各记一行，凑齐 GRAY_RELEASE_REQUIRED_CONFIRMS 票才写 gray_release
+        # 每位管理员对某个版本的确认各记一行，凑齐全部白名单才写 gray_release
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS gray_release_confirm (
                 version_code INTEGER NOT NULL,
@@ -990,7 +982,6 @@ def init_gray_release_table():
                 PRIMARY KEY (version_code, telephone)
             )
         """)
-    sync_confirmed_releases()
 
 def get_user_telephone(unionid: str) -> str:
     if not unionid:
@@ -1037,43 +1028,8 @@ def get_release_confirm_phones(version_code: int) -> list:
     return [phone for phone in GRAY_RELEASE_PHONES if phone in confirmed]
 
 def is_release_fully_confirmed(version_code: int) -> bool:
-    """够票即视为通过验收，不必等白名单里剩下的人。"""
-    return len(get_release_confirm_phones(version_code)) >= get_required_confirm_count()
-
-def sync_confirmed_releases():
-    """把已经够票、却还没写进 gray_release 的版本补记为已全量。
-
-    票数要求是在 promote 的那一刻判定的，阈值从「全员」放宽到 3 票之后，
-    历史上卡在 3/4 的版本不会自己放开，靠这里在服务启动时补齐，
-    免得还要请管理员回去重新点一次确认。
-    """
-    required = get_required_confirm_count()
-    if required <= 0 or not GRAY_RELEASE_PHONES:
-        return
-    placeholders = ",".join("?" * len(GRAY_RELEASE_PHONES))
-    with get_cursor() as cursor:
-        cursor.execute(f"""
-            SELECT version_code, COUNT(DISTINCT TRIM(telephone)) AS votes
-            FROM gray_release_confirm
-            WHERE TRIM(telephone) IN ({placeholders})
-              AND version_code NOT IN (SELECT version_code FROM gray_release)
-            GROUP BY version_code
-            HAVING votes >= ?
-        """, (*GRAY_RELEASE_PHONES, required))
-        pending = [int(row["version_code"]) for row in cursor.fetchall()]
-    for version_code in pending:
-        # 版本名和确认人取最后一次确认的那条，便于回溯是谁把票凑齐的
-        with get_cursor() as cursor:
-            cursor.execute("""
-                SELECT version_name, unionid, telephone FROM gray_release_confirm
-                WHERE version_code=? ORDER BY confirmed_at DESC LIMIT 1
-            """, (version_code,))
-            last = cursor.fetchone()
-        promote_release(version_code,
-                        last["version_name"] if last else "",
-                        last["unionid"] if last else "",
-                        last["telephone"] if last else "")
-        print(f"sync_confirmed_releases: version_code={version_code} promoted (confirms >= {required})")
+    """白名单里每个人都确认过，才算通过验收。"""
+    return len(get_release_confirm_phones(version_code)) >= len(GRAY_RELEASE_PHONES)
 
 def promote_release(version_code: int, version_name: str, unionid: str, telephone: str):
     """把某个版本标记为已全量放开，重复确认视为幂等。"""
@@ -1095,7 +1051,7 @@ def get_all_released_versions():
         return _rows_to_list(cursor.fetchall())
 
 def revoke_release(version_code: int):
-    """回退：把版本重新打回灰度状态，之前的确认票一并作废，需要重新凑够票。"""
+    """回退：把版本重新打回灰度状态，之前的确认票一并作废，需要重新逐个确认。"""
     with get_cursor() as cursor:
         cursor.execute("DELETE FROM gray_release WHERE version_code=?", (version_code,))
         cursor.execute("DELETE FROM gray_release_confirm WHERE version_code=?", (version_code,))
