@@ -505,6 +505,8 @@
     <script>
         const API_BASE = '/htz-api-pyservice/api/v1';
         let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [], phonemodelData = [];
+        // 连着点好几个昵称时，只认最后一次点击的结果
+        let userDetailSeq = 0;
 
         // 日志表有几百行，每敲一个键就整表 innerHTML 重建一次，输入时会明显卡顿。
         function debounce(fn, wait) {
@@ -993,15 +995,44 @@
             renderUsers(filtered);
         }
 
+        function renderUserDetailTable(item) {
+            return `
+                <table style="width:100%">
+                    ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:140px">${escapeHtml(k)}</td><td style="padding:8px;word-break:break-all">${escapeHtml(v) || '-'}</td></tr>`).join('')}
+                </table>
+            `;
+        }
+
+        function openUserDetailModal(html) {
+            document.getElementById('user-detail').innerHTML = html;
+            document.getElementById('user-modal').classList.add('show');
+        }
+
         function showUserDetail(id) {
             const item = usersData.find(u => u.id === id);
             if (!item) return;
-            document.getElementById('user-detail').innerHTML = `
-                <table style="width:100%">
-                    ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:140px">${k}</td><td style="padding:8px;word-break:break-all">${v || '-'}</td></tr>`).join('')}
-                </table>
-            `;
-            document.getElementById('user-modal').classList.add('show');
+            openUserDetailModal(renderUserDetailTable(item));
+        }
+
+        // 用量统计里点昵称进来：那边手上只有 unionid，而用户列表可能还没加载过，先拉一次
+        async function showUserDetailByUnionid(unionid) {
+            if (!unionid) return;
+            const seq = ++userDetailSeq;
+            let item = usersData.find(u => u.unionid === unionid);
+            if (!item) {
+                openUserDetailModal('<div class="empty">加载中…</div>');
+                try {
+                    await loadUsers();
+                } catch (e) {
+                    if (seq === userDetailSeq) openUserDetailModal('<div class="empty">加载失败，请重试</div>');
+                    return;
+                }
+                if (seq !== userDetailSeq) return;
+                item = usersData.find(u => u.unionid === unionid);
+            }
+            openUserDetailModal(item
+                ? renderUserDetailTable(item)
+                : `<div class="empty">用户表里查不到这个 unionid，可能账号已删除<br>${escapeHtml(unionid)}</div>`);
         }
 
         function closeUserModal() {
@@ -1322,7 +1353,7 @@
                         ? `<span class="text-truncate link-cell" title="${escapeHtml(item.user_id)}" onclick="showUsageUserDetail('${jsArg(item.user_id)}')">${escapeHtml(item.user_id.substring(0, 12))}…</span>`
                         : '<span style="color:#999">未登录</span>'}</td>
                     <td>${item.user_id
-                        ? `<span class="link-cell" onclick="showUsageUserDetail('${jsArg(item.user_id)}')">${escapeHtml(usageNickname(item.nickname))}</span>`
+                        ? `<span class="link-cell" title="点击查看用户资料" onclick="showUserDetailByUnionid('${jsArg(item.user_id)}')">${escapeHtml(usageNickname(item.nickname))}</span>`
                         : '-'}</td>
                     <td>${item.date || ''}</td>
                     <td>${item.open_count || 0}</td>
