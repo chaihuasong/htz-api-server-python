@@ -14,7 +14,7 @@ import urllib.parse
 import threading
 from datetime import datetime
 
-from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, PhoneModelMappingItem, UserSyncItem, CompletedItemsReport
+from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, UserNote2UpdateItem, PhoneModelMappingItem, UserSyncItem, CompletedItemsReport
 from db import *
 from typing import List
 
@@ -220,6 +220,16 @@ def update_user_telephone(request_item: UserTelephoneUpdateItem):
     synced_user = select_user_dict_by_telephone(telephone)
     if synced_user:
         _push_user_to_tenyears(synced_user)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+@app.post("/htz-api-pyservice/api/v1/userinfo/note2/update")
+def update_user_note2(request_item: UserNote2UpdateItem):
+    unionid = request_item.unionid.strip()
+    if not unionid:
+        return JSONResponse({"code": "400", "msg": "unionid is required", "data": None})
+    updated_count = update_user_note2_by_unionid(unionid, request_item.note2.strip())
+    if updated_count == 0:
+        return JSONResponse({"code": "404", "msg": "user not found", "data": None})
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.post("/htz-api-pyservice/api/v1/userinfo/sync")

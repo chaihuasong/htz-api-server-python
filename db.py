@@ -257,14 +257,27 @@ def init_user_info_table():
                 pwd TEXT DEFAULT '',
                 sign TEXT DEFAULT '',
                 note TEXT DEFAULT '',
+                note2 TEXT DEFAULT '',
                 create_time TEXT,
                 last_update_time TEXT
             )
         """)
+        try:
+            cursor.execute("ALTER TABLE user_info ADD COLUMN note2 TEXT DEFAULT ''")
+        except Exception:
+            pass
 
 def get_all_users():
     with get_cursor() as cursor:
-        cursor.execute("SELECT * FROM user_info")
+        # 没有单独的登录事件。已登录客户端每次上报用量都会刷新 created_at，
+        # 取这个 unionid 最新的一条，就是最近一次以该账号出现的时间。
+        cursor.execute("""
+            SELECT u.*,
+                   (SELECT COALESCE(MAX(created_at), MAX(date))
+                    FROM app_usage
+                    WHERE user_id = u.unionid) AS last_login_time
+            FROM user_info u
+        """)
         return _rows_to_list(cursor.fetchall())
 
 def insert_user(user: UserInfoItem):
@@ -294,6 +307,15 @@ def update_user_by_unionid(user: UserInfoItem):
         """, (user.nickname, user.openid, user.sex, user.headimgurl, user.country,
               user.province, user.city, user.language, user.group_id, user.telephone,
               user.pwd, user.sign, user.note, formatted_time, user.unionid))
+
+def update_user_note2_by_unionid(unionid: str, note2: str):
+    """后台备注2。不改 last_update_time，也不进客户端资料同步，避免被覆盖。"""
+    with get_cursor() as cursor:
+        cursor.execute("""
+            UPDATE user_info SET note2=?
+            WHERE unionid=?
+        """, (note2, unionid))
+        return cursor.rowcount
 
 def update_user_telephone_by_unionid(unionid: str, telephone: str):
     formatted_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -748,9 +770,11 @@ def get_usage_user_detail(user_id: str):
     with get_cursor() as cursor:
         cursor.execute("""
             SELECT unionid, nickname, sex, headimgurl, country, province, city,
-                   telephone, note, create_time, last_update_time
+                   telephone, note, create_time, last_update_time,
+                   (SELECT COALESCE(MAX(created_at), MAX(date))
+                    FROM app_usage WHERE user_id = ?) AS last_login_time
             FROM user_info WHERE unionid = ?
-        """, (user_id,))
+        """, (user_id, user_id))
         row = cursor.fetchone()
         profile = _row_to_dict(row) if row else None
 

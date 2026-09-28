@@ -43,6 +43,11 @@
         .badge-info { background: #e3f2fd; color: #1976d2; }
         .search-box { padding: 10px 16px; border: 1px solid #ddd; border-radius: 4px; width: 300px; }
         .text-truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+        .note2-input { width: 160px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .note2-input:focus { outline: none; border-color: #1976d2; }
+        .note2-input:disabled { background: #fafafa; }
+        .user-actions { white-space: nowrap; }
+        .user-actions .btn + .btn { margin-left: 6px; }
         .refresh-btn { margin-left: auto; }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
         .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; }
@@ -63,6 +68,7 @@
         .bar-opens { background: #1976d2; }
         .bar-duration { background: #43e97b; }
         .bar-play { background: #ff9800; }
+        .bar-devices { background: #7e57c2; }
         .chart-legend { display: flex; gap: 20px; margin-top: 12px; justify-content: center; }
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #666; }
         .legend-dot { width: 12px; height: 12px; border-radius: 2px; }
@@ -230,7 +236,9 @@
                             <th>备注</th>
                             <th>创建时间</th>
                             <th>更新时间</th>
+                            <th>最近登录</th>
                             <th>操作</th>
+                            <th>备注2</th>
                         </tr>
                     </thead>
                     <tbody id="users-table"></tbody>
@@ -294,8 +302,10 @@
                         <div class="legend-item"><div class="legend-dot bar-opens"></div>打开次数</div>
                         <div class="legend-item"><div class="legend-dot bar-duration"></div>前台使用(分钟)</div>
                         <div class="legend-item"><div class="legend-dot bar-play"></div>播放时长(分钟)</div>
+                        <div class="legend-item"><div class="legend-dot bar-devices"></div>设备数</div>
                     </div>
                 </div>
+                <div id="usage-daily-devices"></div>
                 <div class="section-title">详细记录</div>
                 <div class="toolbar">
                     <input type="text" class="search-box" placeholder="搜索设备ID/用户..." id="usage-search" onkeyup="filterUsage()">
@@ -956,7 +966,7 @@
         function renderUsers(data) {
             const tbody = document.getElementById('users-table');
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" class="empty">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" class="empty">暂无数据</td></tr>';
                 return;
             }
             tbody.innerHTML = data.map(item => {
@@ -968,7 +978,7 @@
                 <tr>
                     <td>${item.id}</td>
                     <td>${avatarHtml}</td>
-                    <td>${item.nickname || '<span style="color:#999">微信用户</span>'}</td>
+                    <td><span class="link-cell" title="点击查看用户资料" onclick="showUserDetail(${item.id})">${escapeHtml(item.nickname || '微信用户')}</span></td>
                     <td><span class="text-truncate" title="${(item.unionid || '').replace(/"/g,'&quot;')}">${item.unionid ? item.unionid.substring(0, 12) + '…' : '-'}</span></td>
                     <td>${sexLabel(item.sex)}</td>
                     <td>${region || '-'}</td>
@@ -976,10 +986,17 @@
                     <td><span class="text-truncate" title="${(item.note || '').replace(/"/g,'&quot;')}">${item.note || '-'}</span></td>
                     <td>${item.create_time || '-'}</td>
                     <td>${item.last_update_time || '-'}</td>
-                    <td>
-                        <button class="btn btn-primary btn-sm" onclick="showUserDetail(${item.id})">详情</button>
+                    <td>${item.last_login_time || '-'}</td>
+                    <td class="user-actions">
                         <button class="btn btn-success btn-sm" onclick="showEditUserTelephone(${item.id})">编辑电话</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteUser('${item.unionid}')">删除</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteUser('${jsArg(item.unionid)}')">删除</button>
+                    </td>
+                    <td>
+                        <input class="note2-input" type="text" placeholder="填写备注2"
+                            value="${escapeHtml(item.note2 || '')}"
+                            data-original="${escapeHtml(item.note2 || '')}"
+                            onblur="saveUserNote2('${jsArg(item.unionid)}', this)"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
                     </td>
                 </tr>
             `}).join('');
@@ -990,15 +1007,17 @@
             const filtered = usersData.filter(u =>
                 (u.unionid || '').toLowerCase().includes(keyword) ||
                 (u.nickname || '').toLowerCase().includes(keyword) ||
-                (u.telephone || '').toLowerCase().includes(keyword)
+                (u.telephone || '').toLowerCase().includes(keyword) ||
+                (u.note2 || '').toLowerCase().includes(keyword)
             );
             renderUsers(filtered);
         }
 
         function renderUserDetailTable(item) {
+            const labels = { last_login_time: '最近登录时间', note: '备注', note2: '备注2' };
             return `
                 <table style="width:100%">
-                    ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:140px">${escapeHtml(k)}</td><td style="padding:8px;word-break:break-all">${escapeHtml(v) || '-'}</td></tr>`).join('')}
+                    ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:140px">${escapeHtml(labels[k] || k)}</td><td style="padding:8px;word-break:break-all">${escapeHtml(v) || '-'}</td></tr>`).join('')}
                 </table>
             `;
         }
@@ -1071,6 +1090,34 @@
             closeUserTelephoneModal();
             loadUsers();
         });
+
+        async function saveUserNote2(unionid, input) {
+            const note2 = input.value.trim();
+            const original = input.dataset.original || '';
+            if (note2 === original) return;
+            input.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/userinfo/note2/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ unionid, note2 })
+                });
+                const json = await res.json();
+                if (json.code !== '0') {
+                    alert(json.msg || '保存失败');
+                    input.value = original;
+                    return;
+                }
+                input.dataset.original = note2;
+                const user = usersData.find(u => u.unionid === unionid);
+                if (user) user.note2 = note2;
+            } catch (e) {
+                alert('保存失败');
+                input.value = original;
+            } finally {
+                input.disabled = false;
+            }
+        }
 
         async function deleteUser(unionid) {
             if (!confirm('确定要删除这个用户吗？')) return;
@@ -1184,6 +1231,7 @@
             renderUsageSummary(summary);
             renderPhoneModelStats(phoneModelJson.data || []);
             renderUsageChart(summary.daily_stats || []);
+            renderDailyDeviceStats(summary.daily_stats || []);
             renderUsage(usageData);
         }
 
@@ -1314,11 +1362,13 @@
                 return;
             }
             const maxOpens = Math.max(...dailyStats.map(d => d.opens || 0), 1);
+            const maxDevices = Math.max(...dailyStats.map(d => d.devices || 0), 1);
             // 前台停留和播放时长共用一个纵向刻度，两根柱子的高低才有可比性
             const maxDuration = Math.max(...dailyStats.map(
                 d => Math.max((d.duration || 0), (d.play_duration || 0)) / 60000), 1);
             chart.innerHTML = dailyStats.map(d => {
                 const opensH = Math.max(((d.opens || 0) / maxOpens) * 180, 2);
+                const devicesH = Math.max(((d.devices || 0) / maxDevices) * 180, 2);
                 const durationMin = (d.duration || 0) / 60000;
                 const durationH = Math.max((durationMin / maxDuration) * 180, 2);
                 const playMin = (d.play_duration || 0) / 60000;
@@ -1330,11 +1380,42 @@
                             <div class="bar bar-opens" style="height:${opensH}px" data-tip="打开${d.opens || 0}次"></div>
                             <div class="bar bar-duration" style="height:${durationH}px" data-tip="前台${durationMin.toFixed(1)}分钟"></div>
                             <div class="bar bar-play" style="height:${playH}px" data-tip="播放${playMin.toFixed(1)}分钟"></div>
+                            <div class="bar bar-devices" style="height:${devicesH}px" data-tip="设备${d.devices || 0}台"></div>
                         </div>
                         <div class="bar-label">${dateLabel}</div>
                     </div>
                 `;
             }).join('');
+        }
+
+        function renderDailyDeviceStats(dailyStats) {
+            const section = document.getElementById('usage-daily-devices');
+            if (!dailyStats || dailyStats.length === 0) {
+                section.innerHTML = '';
+                return;
+            }
+            const rows = dailyStats.slice().reverse();
+            section.innerHTML = `
+                <div class="section-title">每日设备数（最近30天）</div>
+                <table>
+                    <thead><tr>
+                        <th>日期</th>
+                        <th>设备数</th>
+                        <th>打开次数</th>
+                        <th>前台使用</th>
+                        <th>播放时长</th>
+                    </tr></thead>
+                    <tbody>
+                        ${rows.map(d => `<tr>
+                            <td>${escapeHtml(d.date)}</td>
+                            <td>${d.devices || 0}</td>
+                            <td>${d.opens || 0}</td>
+                            <td>${formatDuration(d.duration || 0)}</td>
+                            <td>${formatDuration(d.play_duration || 0)}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            `;
         }
 
         function renderUsage(data) {
@@ -1489,7 +1570,7 @@
                         <div class="meta">
                             unionid：${escapeHtml(userId)}<br>
                             手机号：${p && p.telephone ? escapeHtml(p.telephone) : '未绑定'}${region ? ' ｜ 地区：' + escapeHtml(region) : ''}${p && p.note ? ' ｜ 备注：' + escapeHtml(p.note) : ''}<br>
-                            ${p ? '注册：' + escapeHtml(p.create_time || '-') + ' ｜ 最后更新：' + escapeHtml(p.last_update_time || '-')
+                            ${p ? '注册：' + escapeHtml(p.create_time || '-') + ' ｜ 最后更新：' + escapeHtml(p.last_update_time || '-') + ' ｜ 最近登录：' + escapeHtml(p.last_login_time || '-')
                                 : '<span style="color:#d32f2f">用户表里查不到这个 unionid，可能账号已删除</span>'}
                         </div>
                     </div>

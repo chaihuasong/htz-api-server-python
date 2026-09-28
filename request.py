@@ -86,6 +86,10 @@ class UserTelephoneUpdateItem(BaseModel):
     unionid: str
     telephone: str
 
+class UserNote2UpdateItem(BaseModel):
+    unionid: str
+    note2: str = ""
+
 class PhoneModelMappingItem(BaseModel):
     id: int = None
     engineering_model: str
