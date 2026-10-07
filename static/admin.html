@@ -104,6 +104,32 @@
         .login-box .login-error { color: #d32f2f; text-align: center; margin-top: 12px; font-size: 14px; min-height: 20px; }
         .logout-btn { background: none; border: 1px solid rgba(255,255,255,0.5); color: white; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; float: right; margin-top: -2px; transition: all 0.2s; }
         .logout-btn:hover { background: rgba(255,255,255,0.15); border-color: white; }
+        /* 用户信息表格：列较多，保持可读并允许独立横向滚动 */
+        .users-toolbar { padding: 14px 16px; margin: 0; background: #f8fafc; border: 1px solid #e8edf3; border-radius: 10px 10px 0 0; }
+        .users-table-wrap { overflow: auto; max-height: calc(100vh - 270px); border: 1px solid #e8edf3; border-top: 0; border-radius: 0 0 10px 10px; }
+        .users-table { width: max-content; min-width: 100%; margin: 0; border-collapse: separate; border-spacing: 0; font-size: 13px; color: #344054; }
+        .users-table th { position: sticky; top: 0; z-index: 2; padding: 12px 14px; background: #f4f7fb; color: #667085; font-size: 12px; font-weight: 600; letter-spacing: .02em; white-space: nowrap; border-bottom: 1px solid #e3e9f0; }
+        .users-table td { padding: 12px 14px; background: #fff; border-bottom: 1px solid #edf0f4; white-space: nowrap; vertical-align: middle; }
+        .users-table tbody tr:nth-child(even) td { background: #fbfcfe; }
+        .users-table tbody tr:hover td { background: #f1f7ff; }
+        .users-table tbody tr:last-child td { border-bottom: 0; }
+        .users-table th:first-child, .users-table td:first-child { padding-left: 18px; }
+        .users-table .user-avatar { display: block; width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #eef2f7; box-shadow: 0 0 0 2px #fff, 0 0 0 3px #e5eaf0; }
+        .users-table .avatar-empty { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #eef2f7; color: #98a2b3; font-size: 11px; }
+        .users-table .user-id { color: #98a2b3; font-variant-numeric: tabular-nums; }
+        .users-table .user-name { font-weight: 600; }
+        .users-table .user-region { color: #667085; }
+        .users-table .user-muted { color: #98a2b3; }
+        .users-table .user-time { color: #667085; font-variant-numeric: tabular-nums; }
+        .users-table .user-actions .btn { border-radius: 6px; }
+        .users-table .note2-input { width: 150px; border-color: #dfe5ec; border-radius: 6px; background: #fff; }
+        .users-table .note2-input:focus { border-color: #1976d2; box-shadow: 0 0 0 3px rgba(25,118,210,.1); }
+        .users-table .badge { padding: 4px 9px; border-radius: 999px; font-weight: 500; }
+        @media (max-width: 700px) {
+            .users-toolbar { padding: 10px; }
+            .users-toolbar .search-box { width: min(65vw, 300px); }
+            .users-table-wrap { max-height: calc(100vh - 230px); }
+        }
     </style>
 </head>
 <body>
@@ -219,11 +245,12 @@
             </div>
             <!-- 用户信息面板 -->
             <div id="users-panel" class="panel">
-                <div class="toolbar">
+                <div class="toolbar users-toolbar">
                     <input type="text" class="search-box" placeholder="搜索用户..." id="user-search" onkeyup="filterUsers()">
                     <button class="btn btn-success refresh-btn" onclick="loadUsers()">刷新</button>
                 </div>
-                <table>
+                <div class="users-table-wrap">
+                <table class="users-table">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -244,6 +271,7 @@
                     </thead>
                     <tbody id="users-table"></tbody>
                 </table>
+                </div>
             </div>
             <!-- 日志信息面板 -->
             <div id="logs-panel" class="panel">
@@ -973,22 +1001,22 @@
             tbody.innerHTML = data.map(item => {
                 const region = [item.country, item.province, item.city].filter(Boolean).join(' ');
                 const avatarHtml = item.headimgurl
-                    ? `<img src="${item.headimgurl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`
-                    : '<span style="color:#999">无</span>';
+                    ? `<img class="user-avatar" src="${item.headimgurl}" onerror="this.style.display='none'">`
+                    : '<span class="avatar-empty">无</span>';
                 return `
                 <tr>
-                    <td>${item.id}</td>
+                    <td class="user-id">${item.id}</td>
                     <td>${avatarHtml}</td>
-                    <td><span class="link-cell" title="点击查看用户资料" onclick="showUserDetail(${item.id})">${escapeHtml(item.nickname || '微信用户')}</span></td>
+                    <td><span class="link-cell user-name" title="点击查看用户资料" onclick="showUserDetail(${item.id})">${escapeHtml(item.nickname || '微信用户')}</span></td>
                     <td><span class="text-truncate" title="${(item.unionid || '').replace(/"/g,'&quot;')}">${item.unionid ? item.unionid.substring(0, 12) + '…' : '-'}</span></td>
                     <td>${sexLabel(item.sex)}</td>
-                    <td>${region || '-'}</td>
-                    <td>${item.telephone || '<span style="color:#999">未绑定</span>'}</td>
+                    <td class="user-region">${escapeHtml(region) || '<span class="user-muted">-</span>'}</td>
+                    <td>${item.telephone || '<span class="user-muted">未绑定</span>'}</td>
                     <td><span class="text-truncate" title="${(item.note || '').replace(/"/g,'&quot;')}">${item.note || '-'}</span></td>
-                    <td>${item.create_time || '-'}</td>
-                    <td>${item.last_update_time || '-'}</td>
-                    <td>${item.app_version ? `<span class="badge badge-info">${escapeHtml(item.app_version)}</span>` : '<span style="color:#999">未知</span>'}</td>
-                    <td>${item.last_login_time || '-'}</td>
+                    <td class="user-time">${item.create_time || '-'}</td>
+                    <td class="user-time">${item.last_update_time || '-'}</td>
+                    <td>${item.app_version ? `<span class="badge badge-info">${escapeHtml(item.app_version)}</span>` : '<span class="user-muted">未知</span>'}</td>
+                    <td class="user-time">${item.last_login_time || '-'}</td>
                     <td class="user-actions">
                         <button class="btn btn-success btn-sm" onclick="showEditUserTelephone(${item.id})">编辑电话</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteUser('${jsArg(item.unionid)}')">删除</button>
