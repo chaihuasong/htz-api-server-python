@@ -21,7 +21,7 @@ from typing import List
 # ===== 与十年持志（TenYears）系统的用户资料双向同步配置 =====
 # 十年持志后端（Spring Boot + MongoDB）入站同步端点，按手机号匹配合并公共资料字段。
 # 可按部署环境调整（同机可改为内网地址）。
-TENYEARS_SYNC_URL = "http://htzchina.org:8081/syncByTelephone"
+TENYEARS_SYNC_URL = "http://app.htzchina.org:8081/syncByTelephone"
 
 
 def _push_user_to_tenyears(payload: dict):
@@ -62,7 +62,7 @@ def _push_user_to_tenyears(payload: dict):
 # 公众号 APPID，appsecret 存在 aksk 表 appName='htz-gzh' 的 accessKeySecure 字段
 WX_GZH_APPID = "wx83aec75c3ca58f0e"
 # redirect_uri 须与公众号后台「网页授权域名」一致
-WX_REDIRECT_URI = "http://htzchina.org/htz-api-pyservice/api/v1/wx/callback"
+WX_REDIRECT_URI = "http://app.htzchina.org/htz-api-pyservice/api/v1/wx/callback"
 # 二维码会话有效期（秒）。
 # 同一台手机扫码要走「截图 → 打开微信 → 扫一扫相册 → 授权 → 返回 App」，5 分钟经常不够用。
 QR_SESSION_EXPIRE_SECONDS = 600
