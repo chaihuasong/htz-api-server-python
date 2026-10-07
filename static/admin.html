@@ -165,6 +165,16 @@
         .users-sort { cursor: pointer; user-select: none; }
         .users-sort:hover { color: #1976d2; }
         .users-sort-indicator { margin-left: 4px; color: #1976d2; }
+        .daily-device-table-wrap { max-height: 340px; overflow: auto; border: 1px solid #e8edf3; border-radius: 10px; background: #fff; }
+        .daily-device-table { width: 100%; min-width: 520px; margin: 0; border-collapse: separate; border-spacing: 0; font-size: 13px; color: #344054; }
+        .daily-device-table th { position: sticky; top: 0; z-index: 1; padding: 11px 16px; background: #f4f7fb; color: #667085; font-size: 12px; font-weight: 600; white-space: nowrap; border-bottom: 1px solid #e3e9f0; }
+        .daily-device-table td { padding: 10px 16px; background: #fff; border-bottom: 1px solid #edf0f4; white-space: nowrap; }
+        .daily-device-table tbody tr:nth-child(even) td { background: #fbfcfe; }
+        .daily-device-table tbody tr:hover td { background: #f1f7ff; }
+        .daily-device-table tbody tr:last-child td { border-bottom: 0; }
+        .daily-device-table .daily-date { color: #475467; font-variant-numeric: tabular-nums; }
+        .daily-device-table .daily-metric { text-align: right; font-variant-numeric: tabular-nums; }
+        .daily-device-table .daily-device-count { color: #1769aa; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -1522,7 +1532,7 @@
             const rows = dailyStats.slice().reverse();
             section.innerHTML = `
                 <div class="section-title">每日设备数（最近30天）</div>
-                <table>
+                <div class="daily-device-table-wrap"><table class="daily-device-table">
                     <thead><tr>
                         <th>日期</th>
                         <th>设备数</th>
@@ -1532,14 +1542,14 @@
                     </tr></thead>
                     <tbody>
                         ${rows.map(d => `<tr>
-                            <td>${escapeHtml(d.date)}</td>
-                            <td>${d.devices || 0}</td>
-                            <td>${d.opens || 0}</td>
-                            <td>${formatDuration(d.duration || 0)}</td>
-                            <td>${formatDuration(d.play_duration || 0)}</td>
+                            <td class="daily-date">${escapeHtml(d.date)}</td>
+                            <td class="daily-metric daily-device-count">${d.devices || 0}</td>
+                            <td class="daily-metric">${d.opens || 0}</td>
+                            <td class="daily-metric">${formatDuration(d.duration || 0)}</td>
+                            <td class="daily-metric">${formatDuration(d.play_duration || 0)}</td>
                         </tr>`).join('')}
                     </tbody>
-                </table>
+                </table></div>
             `;
         }
 
