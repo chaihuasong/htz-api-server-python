@@ -275,7 +275,12 @@ def get_all_users():
             SELECT u.*,
                    (SELECT COALESCE(MAX(created_at), MAX(date))
                     FROM app_usage
-                    WHERE user_id = u.unionid) AS last_login_time
+                    WHERE user_id = u.unionid) AS last_login_time,
+                   (SELECT version
+                    FROM app_usage
+                    WHERE user_id = u.unionid AND version != ''
+                    ORDER BY COALESCE(created_at, date) DESC, id DESC
+                    LIMIT 1) AS app_version
             FROM user_info u
         """)
         return _rows_to_list(cursor.fetchall())

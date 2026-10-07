@@ -236,6 +236,7 @@
                             <th>备注</th>
                             <th>创建时间</th>
                             <th>更新时间</th>
+                            <th>当前版本</th>
                             <th>最近登录</th>
                             <th>操作</th>
                             <th>备注2</th>
@@ -966,7 +967,7 @@
         function renderUsers(data) {
             const tbody = document.getElementById('users-table');
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="13" class="empty">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="14" class="empty">暂无数据</td></tr>';
                 return;
             }
             tbody.innerHTML = data.map(item => {
@@ -986,6 +987,7 @@
                     <td><span class="text-truncate" title="${(item.note || '').replace(/"/g,'&quot;')}">${item.note || '-'}</span></td>
                     <td>${item.create_time || '-'}</td>
                     <td>${item.last_update_time || '-'}</td>
+                    <td>${item.app_version ? `<span class="badge badge-info">${escapeHtml(item.app_version)}</span>` : '<span style="color:#999">未知</span>'}</td>
                     <td>${item.last_login_time || '-'}</td>
                     <td class="user-actions">
                         <button class="btn btn-success btn-sm" onclick="showEditUserTelephone(${item.id})">编辑电话</button>
@@ -1014,7 +1016,7 @@
         }
 
         function renderUserDetailTable(item) {
-            const labels = { last_login_time: '最近登录时间', note: '备注', note2: '备注2' };
+            const labels = { app_version: '当前 APP 版本', last_login_time: '最近登录时间', note: '备注', note2: '备注2' };
             return `
                 <table style="width:100%">
                     ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:140px">${escapeHtml(labels[k] || k)}</td><td style="padding:8px;word-break:break-all">${escapeHtml(v) || '-'}</td></tr>`).join('')}
