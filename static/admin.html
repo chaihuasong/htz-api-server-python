@@ -118,6 +118,8 @@
         .users-table .avatar-empty { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #eef2f7; color: #98a2b3; font-size: 11px; }
         .users-table .user-id { color: #98a2b3; font-variant-numeric: tabular-nums; }
         .users-table .user-name { font-weight: 600; }
+        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 160px; min-width: 160px; max-width: 160px; }
+        .users-table .user-name { display: inline-block; max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
         .users-table .user-region { color: #667085; }
         .users-table .user-muted { color: #98a2b3; }
         .users-table .user-time { color: #667085; font-variant-numeric: tabular-nums; }
@@ -130,6 +132,28 @@
             .users-toolbar .search-box { width: min(65vw, 300px); }
             .users-table-wrap { max-height: calc(100vh - 230px); }
         }
+        .usage-toolbar { margin-bottom: 10px; }
+        .usage-table-wrap { overflow: auto; max-height: 62vh; border: 1px solid #e8edf3; border-radius: 10px; }
+        .usage-table { width: max-content; min-width: 100%; margin: 0; border-collapse: separate; border-spacing: 0; font-size: 13px; color: #344054; }
+        .usage-table th { position: sticky; top: 0; z-index: 2; padding: 11px 13px; background: #f4f7fb; color: #667085; font-size: 12px; font-weight: 600; white-space: nowrap; border-bottom: 1px solid #e3e9f0; }
+        .usage-table td { padding: 10px 13px; background: #fff; border-bottom: 1px solid #edf0f4; white-space: nowrap; vertical-align: middle; }
+        .usage-table tbody tr:nth-child(even) td { background: #fbfcfe; }
+        .usage-table tbody tr:hover td { background: #f1f7ff; }
+        .usage-table tbody tr:last-child td { border-bottom: 0; }
+        .usage-table th:nth-child(4), .usage-table td:nth-child(4) { width: 150px; min-width: 150px; max-width: 150px; }
+        .usage-table .usage-nickname { display: inline-block; max-width: 124px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+        .usage-table .usage-id, .usage-table .usage-date, .usage-table .usage-number { font-variant-numeric: tabular-nums; }
+        .usage-table .usage-id { color: #98a2b3; }
+        .usage-table .usage-number { text-align: right; }
+        .usage-table .usage-device { display: inline-block; max-width: 190px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+        .usage-table .usage-model { line-height: 1.55; }
+        .usage-filter-select { width: 150px; padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; color: #344054; font-size: 14px; }
+        .usage-sort { cursor: pointer; user-select: none; }
+        .usage-sort:hover { color: #1976d2; }
+        .usage-sort-indicator { margin-left: 4px; color: #1976d2; }
+        .users-sort { cursor: pointer; user-select: none; }
+        .users-sort:hover { color: #1976d2; }
+        .users-sort-indicator { margin-left: 4px; color: #1976d2; }
     </style>
 </head>
 <body>
@@ -247,26 +271,37 @@
             <div id="users-panel" class="panel">
                 <div class="toolbar users-toolbar">
                     <input type="text" class="search-box" placeholder="搜索用户..." id="user-search" onkeyup="filterUsers()">
+                    <select class="usage-filter-select" id="user-filter-field" onchange="filterUsers()" aria-label="筛选字段">
+                        <option value="">所有字段</option>
+                        <option value="id">ID</option><option value="nickname">昵称</option>
+                        <option value="unionid">UnionID</option><option value="sex">性别</option>
+                        <option value="region">地区</option><option value="telephone">电话</option>
+                        <option value="note">备注</option><option value="create_time">创建时间</option>
+                        <option value="last_update_time">更新时间</option><option value="app_version">当前版本</option>
+                        <option value="last_login_time">最近登录</option><option value="note2">备注2</option>
+                    </select>
+                    <input type="text" class="search-box" placeholder="输入筛选条件..." id="user-column-search" oninput="filterUsers()" style="width:220px">
+                    <button class="btn btn-sm" onclick="clearUserFilters()">清除</button>
                     <button class="btn btn-success refresh-btn" onclick="loadUsers()">刷新</button>
                 </div>
                 <div class="users-table-wrap">
                 <table class="users-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th class="users-sort" onclick="sortUsers('id')">ID<span class="users-sort-indicator" id="users-sort-id"></span></th>
                             <th>头像</th>
-                            <th>昵称</th>
-                            <th>UnionID</th>
-                            <th>性别</th>
-                            <th>地区</th>
-                            <th>电话</th>
-                            <th>备注</th>
-                            <th>创建时间</th>
-                            <th>更新时间</th>
-                            <th>当前版本</th>
-                            <th>最近登录</th>
+                            <th class="users-sort" onclick="sortUsers('nickname')">昵称<span class="users-sort-indicator" id="users-sort-nickname"></span></th>
+                            <th class="users-sort" onclick="sortUsers('unionid')">UnionID<span class="users-sort-indicator" id="users-sort-unionid"></span></th>
+                            <th class="users-sort" onclick="sortUsers('sex')">性别<span class="users-sort-indicator" id="users-sort-sex"></span></th>
+                            <th class="users-sort" onclick="sortUsers('region')">地区<span class="users-sort-indicator" id="users-sort-region"></span></th>
+                            <th class="users-sort" onclick="sortUsers('telephone')">电话<span class="users-sort-indicator" id="users-sort-telephone"></span></th>
+                            <th class="users-sort" onclick="sortUsers('note')">备注<span class="users-sort-indicator" id="users-sort-note"></span></th>
+                            <th class="users-sort" onclick="sortUsers('create_time')">创建时间<span class="users-sort-indicator" id="users-sort-create_time"></span></th>
+                            <th class="users-sort" onclick="sortUsers('last_update_time')">更新时间<span class="users-sort-indicator" id="users-sort-last_update_time"></span></th>
+                            <th class="users-sort" onclick="sortUsers('app_version')">当前版本<span class="users-sort-indicator" id="users-sort-app_version"></span></th>
+                            <th class="users-sort" onclick="sortUsers('last_login_time')">最近登录<span class="users-sort-indicator" id="users-sort-last_login_time"></span></th>
                             <th>操作</th>
-                            <th>备注2</th>
+                            <th class="users-sort" onclick="sortUsers('note2')">备注2<span class="users-sort-indicator" id="users-sort-note2"></span></th>
                         </tr>
                     </thead>
                     <tbody id="users-table"></tbody>
@@ -336,30 +371,44 @@
                 </div>
                 <div id="usage-daily-devices"></div>
                 <div class="section-title">详细记录</div>
-                <div class="toolbar">
+                <div class="toolbar usage-toolbar">
                     <input type="text" class="search-box" placeholder="搜索设备ID/用户..." id="usage-search" onkeyup="filterUsage()">
+                    <select class="usage-filter-select" id="usage-filter-field" onchange="filterUsage()" aria-label="筛选字段">
+                        <option value="">所有字段</option>
+                        <option value="date">日期</option><option value="device_id">设备ID</option>
+                        <option value="user_id">用户ID</option><option value="nickname">昵称</option>
+                        <option value="source">来源</option><option value="phone_model">手机型号</option>
+                        <option value="os_version">系统版本</option><option value="network_type">网络类型</option>
+                        <option value="version">版本</option><option value="pkg">包名</option>
+                        <option value="id">记录ID</option><option value="open_count">打开次数</option>
+                        <option value="duration_ms">前台使用时长</option><option value="play_duration_ms">播放时长</option>
+                    </select>
+                    <input type="text" class="search-box" placeholder="输入筛选条件..." id="usage-column-search" oninput="filterUsage()" style="width:220px">
+                    <button class="btn btn-sm" onclick="clearUsageFilters()">清除</button>
                 </div>
-                <table>
+                <div class="usage-table-wrap">
+                <table class="usage-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>设备ID</th>
-                            <th>用户</th>
-                            <th>昵称</th>
-                            <th>日期</th>
-                            <th>打开次数</th>
-                            <th>前台使用</th>
-                            <th>播放时长</th>
-                            <th>来源</th>
-                            <th>手机型号</th>
-                            <th>系统版本</th>
-                            <th>网络类型</th>
-                            <th>版本</th>
-                            <th>包名</th>
+                            <th class="usage-sort" onclick="sortUsage('id')">ID<span class="usage-sort-indicator" id="usage-sort-id"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('device_id')">设备ID<span class="usage-sort-indicator" id="usage-sort-device_id"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('user_id')">用户<span class="usage-sort-indicator" id="usage-sort-user_id"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('nickname')">昵称<span class="usage-sort-indicator" id="usage-sort-nickname"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('date')">日期<span class="usage-sort-indicator" id="usage-sort-date"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('open_count')">打开次数<span class="usage-sort-indicator" id="usage-sort-open_count"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('duration_ms')">前台使用<span class="usage-sort-indicator" id="usage-sort-duration_ms"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('play_duration_ms')">播放时长<span class="usage-sort-indicator" id="usage-sort-play_duration_ms"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('source')">来源<span class="usage-sort-indicator" id="usage-sort-source"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('phone_model')">手机型号<span class="usage-sort-indicator" id="usage-sort-phone_model"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('os_version')">系统版本<span class="usage-sort-indicator" id="usage-sort-os_version"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('network_type')">网络类型<span class="usage-sort-indicator" id="usage-sort-network_type"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('version')">版本<span class="usage-sort-indicator" id="usage-sort-version"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('pkg')">包名<span class="usage-sort-indicator" id="usage-sort-pkg"></span></th>
                         </tr>
                     </thead>
                     <tbody id="usage-table"></tbody>
                 </table>
+                </div>
                 <div id="usage-phone-model-section"></div>
             </div>
         </div>
@@ -544,6 +593,8 @@
     <script>
         const API_BASE = '/htz-api-pyservice/api/v1';
         let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [], phonemodelData = [];
+        let usageSort = { key: 'date', direction: 'desc' };
+        let userSort = { key: 'id', direction: 'desc' };
         // 连着点好几个昵称时，只认最后一次点击的结果
         let userDetailSeq = 0;
 
@@ -983,7 +1034,7 @@
             const res = await fetch(`${API_BASE}/userinfo/list`);
             const json = await res.json();
             usersData = json.data || [];
-            renderUsers(usersData);
+            filterUsers();
         }
 
         function sexLabel(s) {
@@ -998,7 +1049,18 @@
                 tbody.innerHTML = '<tr><td colspan="14" class="empty">暂无数据</td></tr>';
                 return;
             }
-            tbody.innerHTML = data.map(item => {
+            const sortedData = data.slice().sort((a, b) => {
+                const av = getUserSortValue(a, userSort.key);
+                const bv = getUserSortValue(b, userSort.key);
+                const order = userSort.key === 'id' || userSort.key === 'sex'
+                    ? Number(av || 0) - Number(bv || 0)
+                    : String(av).localeCompare(String(bv), 'zh-CN', { numeric: true, sensitivity: 'base' });
+                return order * (userSort.direction === 'asc' ? 1 : -1);
+            });
+            document.querySelectorAll('.users-sort-indicator').forEach(el => el.textContent = '');
+            const indicator = document.getElementById(`users-sort-${userSort.key}`);
+            if (indicator) indicator.textContent = userSort.direction === 'asc' ? '↑' : '↓';
+            tbody.innerHTML = sortedData.map(item => {
                 const region = [item.country, item.province, item.city].filter(Boolean).join(' ');
                 const avatarHtml = item.headimgurl
                     ? `<img class="user-avatar" src="${item.headimgurl}" onerror="this.style.display='none'">`
@@ -1033,14 +1095,36 @@
         }
 
         function filterUsers() {
-            const keyword = document.getElementById('user-search').value.toLowerCase();
-            const filtered = usersData.filter(u =>
-                (u.unionid || '').toLowerCase().includes(keyword) ||
-                (u.nickname || '').toLowerCase().includes(keyword) ||
-                (u.telephone || '').toLowerCase().includes(keyword) ||
-                (u.note2 || '').toLowerCase().includes(keyword)
-            );
+            const keyword = (document.getElementById('user-search').value || '').trim().toLowerCase();
+            const field = document.getElementById('user-filter-field').value;
+            const columnKeyword = (document.getElementById('user-column-search').value || '').trim().toLowerCase();
+            const getValue = (u, key) => key === 'region'
+                ? [u.country, u.province, u.city].filter(Boolean).join(' ')
+                : String(u[key] ?? '');
+            const filtered = usersData.filter(u => {
+                const globalFields = ['id', 'nickname', 'unionid', 'telephone', 'note', 'note2', 'app_version', 'create_time', 'last_update_time', 'last_login_time', 'country', 'province', 'city'];
+                const matchesGlobal = !keyword || globalFields.some(key => String(u[key] ?? '').toLowerCase().includes(keyword));
+                const matchesColumn = !columnKeyword || !field || getValue(u, field).toLowerCase().includes(columnKeyword);
+                return matchesGlobal && matchesColumn;
+            });
             renderUsers(filtered);
+        }
+
+        function getUserSortValue(user, key) {
+            if (key === 'region') return [user.country, user.province, user.city].filter(Boolean).join(' ');
+            return user[key] ?? '';
+        }
+
+        function sortUsers(key) {
+            userSort = { key, direction: userSort.key === key && userSort.direction === 'asc' ? 'desc' : 'asc' };
+            filterUsers();
+        }
+
+        function clearUserFilters() {
+            document.getElementById('user-search').value = '';
+            document.getElementById('user-filter-field').value = '';
+            document.getElementById('user-column-search').value = '';
+            filterUsers();
         }
 
         function renderUserDetailTable(item) {
@@ -1262,7 +1346,7 @@
             renderPhoneModelStats(phoneModelJson.data || []);
             renderUsageChart(summary.daily_stats || []);
             renderDailyDeviceStats(summary.daily_stats || []);
-            renderUsage(usageData);
+            filterUsage();
         }
 
         function renderUsageSummary(s) {
@@ -1456,22 +1540,22 @@
             }
             tbody.innerHTML = data.map(item => `
                 <tr>
-                    <td>${item.id}</td>
+                    <td class="usage-id">${item.id}</td>
                     <td>${item.device_id
-                        ? `<span class="text-truncate link-cell" title="${escapeHtml(item.device_id)}" onclick="showUsageDeviceDetail('${jsArg(item.device_id)}')">${escapeHtml(item.device_id)}</span>`
+                        ? `<span class="usage-device link-cell" title="${escapeHtml(item.device_id)}" onclick="showUsageDeviceDetail('${jsArg(item.device_id)}')">${escapeHtml(item.device_id)}</span>`
                         : '-'}</td>
                     <td>${item.user_id
                         ? `<span class="text-truncate link-cell" title="${escapeHtml(item.user_id)}" onclick="showUsageUserDetail('${jsArg(item.user_id)}')">${escapeHtml(item.user_id.substring(0, 12))}…</span>`
                         : '<span style="color:#999">未登录</span>'}</td>
                     <td>${item.user_id
-                        ? `<span class="link-cell" title="点击查看用户资料" onclick="showUserDetailByUnionid('${jsArg(item.user_id)}')">${escapeHtml(usageNickname(item.nickname))}</span>`
+                        ? `<span class="usage-nickname link-cell" title="${escapeHtml(usageNickname(item.nickname))}" onclick="showUserDetailByUnionid('${jsArg(item.user_id)}')">${escapeHtml(usageNickname(item.nickname))}</span>`
                         : '-'}</td>
-                    <td>${item.date || ''}</td>
-                    <td>${item.open_count || 0}</td>
-                    <td>${formatDuration(item.duration_ms || 0)}</td>
-                    <td>${formatDuration(item.play_duration_ms || 0)}</td>
+                    <td class="usage-date">${item.date || ''}</td>
+                    <td class="usage-number">${item.open_count || 0}</td>
+                    <td class="usage-number">${formatDuration(item.duration_ms || 0)}</td>
+                    <td class="usage-number">${formatDuration(item.play_duration_ms || 0)}</td>
                     <td>${item.source || '-'}</td>
-                    <td>${item.phone_model ? (item.phone_model + (item.marketing_model ? '<br><span style="font-size:12px;color:#1976d2">→ ' + item.marketing_model + '</span>' : '') + (item.engineering_model ? '<br><span style="font-size:11px;color:#999">' + item.engineering_model + '</span>' : '')) : '-'}</td>
+                    <td class="usage-model">${item.phone_model ? (item.phone_model + (item.marketing_model ? '<br><span style="font-size:12px;color:#1976d2">→ ' + item.marketing_model + '</span>' : '') + (item.engineering_model ? '<br><span style="font-size:11px;color:#999">' + item.engineering_model + '</span>' : '')) : '-'}</td>
                     <td>${item.os_version || '-'}</td>
                     <td>${item.network_type || '-'}</td>
                     <td><span class="badge badge-info">${item.version || ''}</span></td>
@@ -1481,18 +1565,45 @@
         }
 
         function filterUsage() {
-            const keyword = document.getElementById('usage-search').value.toLowerCase();
-            const filtered = usageData.filter(u =>
-                (u.device_id || '').toLowerCase().includes(keyword) ||
-                (u.user_id || '').toLowerCase().includes(keyword) ||
-                (u.nickname || '').toLowerCase().includes(keyword) ||
-                (u.date || '').toLowerCase().includes(keyword) ||
-                (u.version || '').toLowerCase().includes(keyword) ||
-                (u.phone_model || '').toLowerCase().includes(keyword) ||
-                (u.marketing_model || '').toLowerCase().includes(keyword) ||
-                (u.engineering_model || '').toLowerCase().includes(keyword)
-            );
+            const keyword = (document.getElementById('usage-search').value || '').trim().toLowerCase();
+            const field = document.getElementById('usage-filter-field').value;
+            const columnKeyword = (document.getElementById('usage-column-search').value || '').trim().toLowerCase();
+            const searchable = ['device_id', 'user_id', 'nickname', 'date', 'version', 'phone_model', 'marketing_model', 'engineering_model', 'source', 'os_version', 'network_type', 'pkg', 'id', 'open_count', 'duration_ms', 'play_duration_ms'];
+            const filtered = usageData.filter(u => {
+                const matchesGlobal = !keyword || searchable.some(key => String(u[key] ?? '').toLowerCase().includes(keyword));
+                const fieldValue = field === 'duration_ms' ? formatDuration(u.duration_ms || 0)
+                    : field === 'play_duration_ms' ? formatDuration(u.play_duration_ms || 0)
+                    : String(u[field] ?? '');
+                const matchesColumn = !columnKeyword || !field || fieldValue.toLowerCase().includes(columnKeyword);
+                return matchesGlobal && matchesColumn;
+            }).sort((a, b) => {
+                const av = a[usageSort.key] ?? '';
+                const bv = b[usageSort.key] ?? '';
+                const numericKeys = ['id', 'open_count', 'duration_ms', 'play_duration_ms'];
+                let order;
+                if (numericKeys.includes(usageSort.key)) order = Number(av) - Number(bv);
+                else order = String(av).localeCompare(String(bv), 'zh-CN', { numeric: true, sensitivity: 'base' });
+                return order * (usageSort.direction === 'asc' ? 1 : -1);
+            });
+            document.querySelectorAll('.usage-sort-indicator').forEach(el => el.textContent = '');
+            const indicator = document.getElementById(`usage-sort-${usageSort.key}`);
+            if (indicator) indicator.textContent = usageSort.direction === 'asc' ? '↑' : '↓';
             renderUsage(filtered);
+        }
+
+        function sortUsage(key) {
+            usageSort = { key, direction: usageSort.key === key && usageSort.direction === 'asc' ? 'desc' : 'asc' };
+            document.querySelectorAll('.usage-sort-indicator').forEach(el => el.textContent = '');
+            const indicator = document.getElementById(`usage-sort-${key}`);
+            if (indicator) indicator.textContent = usageSort.direction === 'asc' ? '↑' : '↓';
+            filterUsage();
+        }
+
+        function clearUsageFilters() {
+            document.getElementById('usage-search').value = '';
+            document.getElementById('usage-filter-field').value = '';
+            document.getElementById('usage-column-search').value = '';
+            filterUsage();
         }
 
         // ===== 用量详情弹窗 =====
