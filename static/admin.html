@@ -123,7 +123,18 @@
         .users-table .user-region { color: #667085; }
         .users-table .user-muted { color: #98a2b3; }
         .users-table .user-time { color: #667085; font-variant-numeric: tabular-nums; }
-        .users-table .user-actions .btn { border-radius: 6px; }
+        .users-table th.col-actions,
+        .users-table td.user-actions { position: sticky; right: 0; z-index: 1; width: 1%; padding-left: 10px; padding-right: 12px; box-shadow: -8px 0 10px -8px rgba(16, 24, 40, 0.18); }
+        .users-table th.col-actions { z-index: 3; background: #f4f7fb; }
+        .users-table td.user-actions { background: #fff; }
+        .users-table tbody tr:nth-child(even) td.user-actions { background: #fbfcfe; }
+        .users-table tbody tr:hover td.user-actions { background: #f1f7ff; }
+        .users-table .user-actions .btn { padding: 3px 8px; border-radius: 6px; border: 1px solid #d0d5dd; background: #fff; color: #344054; font-size: 12px; line-height: 18px; }
+        .users-table .user-actions .btn:hover { background: #f8fafc; }
+        .users-table .user-actions .btn-edit { color: #175cd3; border-color: #b2ddff; }
+        .users-table .user-actions .btn-edit:hover { background: #eff8ff; }
+        .users-table .user-actions .btn-danger { color: #b42318; border-color: #fecdca; background: #fff; }
+        .users-table .user-actions .btn-danger:hover { background: #fef3f2; }
         .users-table .note2-input { width: 150px; border-color: #dfe5ec; border-radius: 6px; background: #fff; }
         .users-table .note2-input:focus { border-color: #1976d2; box-shadow: 0 0 0 3px rgba(25,118,210,.1); }
         .users-table .badge { padding: 4px 9px; border-radius: 999px; font-weight: 500; }
@@ -300,8 +311,8 @@
                             <th class="users-sort" onclick="sortUsers('last_update_time')">更新时间<span class="users-sort-indicator" id="users-sort-last_update_time"></span></th>
                             <th class="users-sort" onclick="sortUsers('app_version')">当前版本<span class="users-sort-indicator" id="users-sort-app_version"></span></th>
                             <th class="users-sort" onclick="sortUsers('last_login_time')">最近登录<span class="users-sort-indicator" id="users-sort-last_login_time"></span></th>
-                            <th>操作</th>
                             <th class="users-sort" onclick="sortUsers('note2')">备注2<span class="users-sort-indicator" id="users-sort-note2"></span></th>
+                            <th class="col-actions">操作</th>
                         </tr>
                     </thead>
                     <tbody id="users-table"></tbody>
@@ -1079,16 +1090,16 @@
                     <td class="user-time">${item.last_update_time || '-'}</td>
                     <td>${item.app_version ? `<span class="badge badge-info">${escapeHtml(item.app_version)}</span>` : '<span class="user-muted">未知</span>'}</td>
                     <td class="user-time">${item.last_login_time || '-'}</td>
-                    <td class="user-actions">
-                        <button class="btn btn-success btn-sm" onclick="showEditUserTelephone(${item.id})">编辑电话</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteUser('${jsArg(item.unionid)}')">删除</button>
-                    </td>
                     <td>
                         <input class="note2-input" type="text" placeholder="填写备注2"
                             value="${escapeHtml(item.note2 || '')}"
                             data-original="${escapeHtml(item.note2 || '')}"
                             onblur="saveUserNote2('${jsArg(item.unionid)}', this)"
                             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+                    </td>
+                    <td class="user-actions">
+                        <button class="btn btn-sm btn-edit" onclick="showEditUserTelephone(${item.id})">编辑电话</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteUser('${jsArg(item.unionid)}')">删除</button>
                     </td>
                 </tr>
             `}).join('');
