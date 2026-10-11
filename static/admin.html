@@ -105,7 +105,16 @@
         .logout-btn:hover { background: rgba(255,255,255,0.15); border-color: white; }
         /* 用户信息表格：列较多，保持可读并允许独立横向滚动 */
         .users-toolbar { padding: 14px 16px; margin: 0; background: #f8fafc; border: 1px solid #e8edf3; border-radius: 10px 10px 0 0; }
-        .users-table-wrap { overflow: auto; max-height: calc(100vh - 270px); border: 1px solid #e8edf3; border-top: 0; border-radius: 0 0 10px 10px; }
+        .users-stats { padding: 10px 16px; background: #fff; border: 1px solid #e8edf3; border-top: 0; font-size: 13px; color: #475467; }
+        .users-stats-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+        .users-stats-summary strong { color: #175cd3; font-size: 18px; font-variant-numeric: tabular-nums; }
+        .users-stats-summary .users-stats-item b { color: #344054; font-variant-numeric: tabular-nums; }
+        .users-stats-versions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+        .users-stats-versions .users-stats-label { color: #98a2b3; margin-right: 2px; }
+        .users-version-chip { padding: 2px 9px; border: 1px solid #d0d5dd; border-radius: 999px; background: #fff; color: #344054; font-size: 12px; cursor: pointer; }
+        .users-version-chip:hover { background: #eff8ff; border-color: #b2ddff; }
+        .users-version-chip.active { background: #175cd3; border-color: #175cd3; color: #fff; }
+        .users-table-wrap { overflow: auto; max-height: calc(100vh - 350px); border: 1px solid #e8edf3; border-top: 0; border-radius: 0 0 10px 10px; }
         .users-table { width: max-content; min-width: 100%; margin: 0; border-collapse: separate; border-spacing: 0; font-size: 13px; color: #344054; }
         .users-table th { position: sticky; top: 0; z-index: 2; padding: 12px 14px; background: #f4f7fb; color: #667085; font-size: 12px; font-weight: 600; letter-spacing: .02em; white-space: nowrap; border-bottom: 1px solid #e3e9f0; }
         .users-table td { padding: 12px 14px; background: #fff; border-bottom: 1px solid #edf0f4; white-space: nowrap; vertical-align: middle; }
@@ -333,6 +342,7 @@
                     <button class="btn btn-sm" onclick="clearUserFilters()">清除</button>
                     <button class="btn btn-success refresh-btn" onclick="loadUsers()">刷新</button>
                 </div>
+                <div class="users-stats" id="users-stats"></div>
                 <div class="users-table-wrap">
                 <table class="users-table">
                     <thead>
@@ -1156,7 +1166,57 @@
                 const matchesColumn = !columnKeyword || !field || getValue(u, field).toLowerCase().includes(columnKeyword);
                 return matchesGlobal && matchesColumn;
             });
+            renderUserStats(filtered, field === 'app_version' ? columnKeyword : '');
             renderUsers(filtered);
+        }
+
+        // 筛选结果统计：总数/占比、性别、绑定电话、今日登录，以及版本分布（点击版本可快速筛选）
+        function renderUserStats(filtered, activeVersion) {
+            const total = usersData.length;
+            const count = filtered.length;
+            const pct = total ? (count / total * 100).toFixed(1) : '0.0';
+            const now = new Date();
+            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            let male = 0, female = 0, phone = 0, todayLogin = 0, todayNew = 0;
+            const versions = {};
+            filtered.forEach(u => {
+                if (String(u.sex) === '1') male++;
+                else if (String(u.sex) === '2') female++;
+                if (u.telephone) phone++;
+                if (String(u.last_login_time || '').startsWith(today)) todayLogin++;
+                if (String(u.create_time || '').startsWith(today)) todayNew++;
+                const v = u.app_version || '未知';
+                versions[v] = (versions[v] || 0) + 1;
+            });
+            const versionChips = Object.entries(versions)
+                .sort((a, b) => b[1] - a[1] || String(b[0]).localeCompare(String(a[0]), 'zh-CN', { numeric: true }))
+                .map(([v, n]) => {
+                    const isUnknown = v === '未知';
+                    const active = !isUnknown && activeVersion && v.toLowerCase() === activeVersion ? ' active' : '';
+                    const click = isUnknown ? '' : ` onclick="filterUsersByVersion('${jsArg(v)}')"`;
+                    return `<span class="users-version-chip${active}"${click} title="${isUnknown ? '' : '点击筛选该版本'}">${escapeHtml(v)} · ${n}</span>`;
+                }).join('');
+            document.getElementById('users-stats').innerHTML = `
+                <div class="users-stats-summary">
+                    <span>筛选结果 <strong>${count.toLocaleString()}</strong> / 共 ${total.toLocaleString()} 人（${pct}%）</span>
+                    <span class="users-stats-item">男 <b>${male}</b></span>
+                    <span class="users-stats-item">女 <b>${female}</b></span>
+                    <span class="users-stats-item">性别未知 <b>${count - male - female}</b></span>
+                    <span class="users-stats-item">已绑定电话 <b>${phone}</b></span>
+                    <span class="users-stats-item">今日登录 <b>${todayLogin}</b></span>
+                    <span class="users-stats-item">今日新增 <b>${todayNew}</b></span>
+                </div>
+                ${versionChips ? `<div class="users-stats-versions"><span class="users-stats-label">版本分布</span>${versionChips}</div>` : ''}
+            `;
+        }
+
+        function filterUsersByVersion(version) {
+            const fieldEl = document.getElementById('user-filter-field');
+            const inputEl = document.getElementById('user-column-search');
+            const isActive = fieldEl.value === 'app_version' && inputEl.value.trim().toLowerCase() === version.toLowerCase();
+            fieldEl.value = isActive ? '' : 'app_version';
+            inputEl.value = isActive ? '' : version;
+            filterUsers();
         }
 
         function getUserSortValue(user, key) {
