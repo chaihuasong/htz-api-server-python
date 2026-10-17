@@ -29,10 +29,12 @@
         .btn-success:hover { background: #2e7d32; }
         .btn-sm { padding: 4px 12px; font-size: 13px; }
         .toolbar { margin-bottom: 16px; display: flex; gap: 12px; align-items: center; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal { display: none; position: fixed; inset: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
         .modal.show { display: flex; }
-        .modal-content { background: white; padding: 24px; border-radius: 8px; width: 500px; max-width: 90%; }
+        .modal-content { background: white; padding: 24px; border-radius: 8px; width: 500px; max-width: 100%; max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; -webkit-overflow-scrolling: touch; }
         .modal-header { font-size: 18px; font-weight: 500; margin-bottom: 20px; }
+        .modal-close { display: grid; place-items: center; width: 44px; height: 44px; margin: -10px -8px -10px 0; border: none; border-radius: 8px; background: transparent; color: #667085; font-size: 28px; line-height: 1; cursor: pointer; flex-shrink: 0; touch-action: manipulation; }
+        .modal-close:hover { background: #f2f4f7; color: #344054; }
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; margin-bottom: 6px; font-weight: 500; color: #333; }
         .form-group input, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
@@ -80,9 +82,26 @@
         .detail-body th, .detail-body td { padding: 8px 10px; font-size: 13px; }
         .detail-body .section-title { margin: 20px 0 4px; font-size: 15px; }
         .detail-profile { display: flex; gap: 14px; align-items: center; padding: 14px 16px; background: #fafafa; border-radius: 8px; }
-        .detail-profile img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .detail-profile img, .detail-profile .avatar-fallback { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .detail-profile .avatar-fallback { display: grid; place-items: center; background: #eef2f7; color: #98a2b3; font-size: 13px; }
         .detail-profile .name { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
         .detail-profile .meta { font-size: 12px; color: #888; line-height: 1.7; word-break: break-all; }
+        .user-detail-modal { display: flex; flex-direction: column; width: min(640px, 100%); padding: 0; overflow: hidden; }
+        .user-detail-modal .modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 8px 8px 8px 16px; border-bottom: 1px solid #edf0f4; flex-shrink: 0; }
+        .user-detail-modal .modal-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; min-height: 0; }
+        .user-detail-modal .modal-footer { margin: 0; padding: 12px 16px; border-top: 1px solid #edf0f4; flex-shrink: 0; }
+        .user-detail-modal .modal-footer .btn { min-height: 44px; min-width: 96px; background: #f2f4f7; color: #344054; border: 1px solid #d0d5dd; touch-action: manipulation; }
+        .user-kv { margin-top: 14px; border: 1px solid #e8edf3; border-radius: 10px; overflow: hidden; }
+        .user-kv-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; padding: 10px 12px; border-bottom: 1px solid #edf0f4; }
+        .user-kv-row:last-child { border-bottom: 0; }
+        .user-kv-row:nth-child(even) { background: #fbfcfe; }
+        .user-kv-label { color: #667085; font-size: 12px; font-weight: 600; padding-top: 1px; }
+        .user-kv-value { color: #344054; font-size: 13px; line-height: 1.5; word-break: break-all; }
+        .user-kv-value .user-muted { color: #98a2b3; }
+        @media (max-width: 700px) {
+            .user-detail-modal .modal-footer .btn { flex: 1; font-size: 16px; }
+            .user-kv-row { grid-template-columns: 84px minmax(0, 1fr); }
+        }
         .mini-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; margin-top: 14px; }
         .mini-stat { background: #f3f6fb; border-radius: 6px; padding: 10px 12px; }
         .mini-stat .mini-value { font-size: 17px; font-weight: 600; color: #1976d2; }
@@ -350,8 +369,6 @@
                             <th class="users-sort" onclick="sortUsers('id')">ID<span class="users-sort-indicator" id="users-sort-id"></span></th>
                             <th>头像</th>
                             <th class="users-sort" onclick="sortUsers('nickname')">昵称<span class="users-sort-indicator" id="users-sort-nickname"></span></th>
-                            <th class="users-sort" onclick="sortUsers('unionid')">UnionID<span class="users-sort-indicator" id="users-sort-unionid"></span></th>
-                            <th class="users-sort" onclick="sortUsers('sex')">性别<span class="users-sort-indicator" id="users-sort-sex"></span></th>
                             <th class="users-sort" onclick="sortUsers('region')">地区<span class="users-sort-indicator" id="users-sort-region"></span></th>
                             <th class="users-sort" onclick="sortUsers('telephone')">电话<span class="users-sort-indicator" id="users-sort-telephone"></span></th>
                             <th class="users-sort" onclick="sortUsers('note')">备注<span class="users-sort-indicator" id="users-sort-note"></span></th>
@@ -508,10 +525,13 @@
     </div>
 
     <!-- 用户详情弹窗 -->
-    <div id="user-modal" class="modal">
-        <div class="modal-content" style="width: 600px;">
-            <div class="modal-header">用户详情</div>
-            <div id="user-detail"></div>
+    <div id="user-modal" class="modal" onclick="if (event.target === this) closeUserModal()">
+        <div class="modal-content user-detail-modal">
+            <div class="modal-header">
+                <span>用户详情</span>
+                <button type="button" class="modal-close" onclick="closeUserModal()" aria-label="关闭">×</button>
+            </div>
+            <div id="user-detail" class="modal-body"></div>
             <div class="modal-footer">
                 <button type="button" class="btn" onclick="closeUserModal()">关闭</button>
             </div>
@@ -1096,6 +1116,12 @@
             filterUsers();
         }
 
+        function sexText(s) {
+            if (s === '1' || s === 1) return '男';
+            if (s === '2' || s === 2) return '女';
+            return '未知';
+        }
+
         function sexLabel(s) {
             if (s === '1' || s === 1) return '<span class="badge" style="background:#e3f2fd;color:#1976d2">男</span>';
             if (s === '2' || s === 2) return '<span class="badge" style="background:#fce4ec;color:#e91e63">女</span>';
@@ -1105,7 +1131,7 @@
         function renderUsers(data) {
             const tbody = document.getElementById('users-table');
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="14" class="empty">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" class="empty">暂无数据</td></tr>';
                 return;
             }
             const sortedData = data.slice().sort((a, b) => {
@@ -1129,8 +1155,6 @@
                     <td class="user-id">${item.id}</td>
                     <td>${avatarHtml}</td>
                     <td><span class="link-cell user-name" title="点击查看用户资料" onclick="showUserDetail(${item.id})">${escapeHtml(item.nickname || '微信用户')}</span></td>
-                    <td><span class="text-truncate" title="${(item.unionid || '').replace(/"/g,'&quot;')}">${item.unionid ? item.unionid.substring(0, 12) + '…' : '-'}</span></td>
-                    <td>${sexLabel(item.sex)}</td>
                     <td class="user-region">${escapeHtml(region) || '<span class="user-muted">-</span>'}</td>
                     <td>${item.telephone || '<span class="user-muted">未绑定</span>'}</td>
                     <td><span class="text-truncate" title="${(item.note || '').replace(/"/g,'&quot;')}">${item.note || '-'}</span></td>
@@ -1236,12 +1260,46 @@
             filterUsers();
         }
 
+        function detailValue(value, emptyText) {
+            const text = value == null ? '' : String(value).trim();
+            if (!text) return `<span class="user-muted">${emptyText || '-'}</span>`;
+            return escapeHtml(text);
+        }
+
         function renderUserDetailTable(item) {
-            const labels = { app_version: '当前 APP 版本', last_login_time: '最近登录时间', note: '备注', note2: '备注2' };
+            const region = [item.country, item.province, item.city].filter(Boolean).join(' ');
+            const avatar = item.headimgurl
+                ? `<img src="${escapeHtml(item.headimgurl)}" alt="" onerror="this.outerHTML='<span class=&quot;avatar-fallback&quot;>无</span>'">`
+                : '<span class="avatar-fallback">无</span>';
+            const rows = [
+                ['用户 ID', item.id],
+                ['UnionID', item.unionid],
+                ['性别', sexText(item.sex)],
+                ['OpenID', item.openid],
+                ['手机号', item.telephone, '未绑定'],
+                ['地区', region, '未知'],
+                ['语言', item.language],
+                ['分组', item.group_id],
+                ['签名', item.sign],
+                ['备注', item.note],
+                ['备注2', item.note2],
+                ['APP 版本', item.app_version, '未知'],
+                ['最近登录', item.last_login_time],
+                ['注册时间', item.create_time],
+                ['最后更新', item.last_update_time],
+                ['登录密码', item.pwd ? '已设置' : '未设置']
+            ];
             return `
-                <table style="width:100%">
-                    ${Object.entries(item).map(([k, v]) => `<tr><td style="padding:8px;font-weight:500;width:140px">${escapeHtml(labels[k] || k)}</td><td style="padding:8px;word-break:break-all">${escapeHtml(v) || '-'}</td></tr>`).join('')}
-                </table>
+                <div class="detail-profile">
+                    ${avatar}
+                    <div>
+                        <div class="name">${escapeHtml(item.nickname || '微信用户')} ${sexLabel(item.sex)}</div>
+                        <div class="meta">${item.app_version ? escapeHtml(item.app_version) : '版本未知'}${region ? ' ｜ ' + escapeHtml(region) : ''}</div>
+                    </div>
+                </div>
+                <div class="user-kv">
+                    ${rows.map(([label, value, emptyText]) => `<div class="user-kv-row"><div class="user-kv-label">${label}</div><div class="user-kv-value">${detailValue(value, emptyText)}</div></div>`).join('')}
+                </div>
             `;
         }
 
