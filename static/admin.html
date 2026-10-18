@@ -9,7 +9,7 @@
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
         .header { background: #1976d2; color: white; padding: 16px 24px; font-size: 20px; font-weight: 500; }
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        .tabs { display: flex; background: white; border-radius: 8px 8px 0 0; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .tabs { display: flex; flex-wrap: wrap; background: white; border-radius: 8px 8px 0 0; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .tab { padding: 16px 32px; cursor: pointer; border: none; background: none; font-size: 15px; color: #666; transition: all 0.2s; }
         .tab:hover { background: #f0f0f0; }
         .tab.active { color: #1976d2; border-bottom: 3px solid #1976d2; font-weight: 500; }
@@ -231,6 +231,15 @@
         .source-stats-table .source-metric { text-align: right; font-variant-numeric: tabular-nums; }
         .source-stats-table .source-name { font-weight: 600; }
         .source-stats-table .source-divider { border-left: 1px solid #e3e9f0; }
+        .about-hint { color: #667085; font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+        .about-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
+        .about-html { width: 100%; min-height: 520px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; resize: vertical; }
+        .about-html:focus { outline: none; border-color: #1976d2; }
+        .about-preview { width: 100%; min-height: 520px; border: 1px solid #e8edf3; border-radius: 6px; background: #fff; }
+        @media (max-width: 900px) {
+            .about-layout { grid-template-columns: 1fr; }
+            .about-html, .about-preview { min-height: 320px; }
+        }
         @media (max-width: 700px) { .stats-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); gap: 9px; } .stat-card { min-height: 88px; padding: 13px 14px; } .stat-card .stat-value { font-size: 20px; } }
     </style>
 </head>
@@ -268,6 +277,7 @@
             <button class="tab" onclick="switchTab('logs')">日志信息</button>
             <button class="tab" onclick="switchTab('feedback')">意见反馈</button>
             <button class="tab" onclick="switchTab('notification')">系统通知</button>
+            <button class="tab" onclick="switchTab('about')">关于书院</button>
             <button class="tab" onclick="switchTab('aksk')">AK/SK 管理</button>
             <button class="tab" onclick="switchTab('phonemodel')">机型映射</button>
         </div>
@@ -323,6 +333,18 @@
                     </thead>
                     <tbody id="notification-table"></tbody>
                 </table>
+            </div>
+            <!-- 关于黄庭书院 -->
+            <div id="about-panel" class="panel">
+                <div class="toolbar">
+                    <span id="about-updated" style="color:#667085;font-size:13px"></span>
+                    <button class="btn btn-primary refresh-btn" id="about-save" onclick="saveAboutPage()">保存</button>
+                </div>
+                <p class="about-hint">这里的 HTML 会显示在 App「设置 - 关于黄庭书院」。可以写片段，也可以贴完整的 HTML 文档。图片请使用 http(s) 地址。内容留空时，App 显示内置介绍。</p>
+                <div class="about-layout">
+                    <textarea id="about-html" class="about-html" spellcheck="false" placeholder="在这里编写 HTML"></textarea>
+                    <iframe id="about-preview" class="about-preview" title="预览"></iframe>
+                </div>
             </div>
             <!-- AK/SK 管理面板 -->
             <div id="aksk-panel" class="panel">
@@ -699,6 +721,7 @@
             else if (tab === 'usage') loadUsage();
             else if (tab === 'feedback') loadFeedback();
             else if (tab === 'notification') loadNotifications();
+            else if (tab === 'about') loadAboutPage();
             else if (tab === 'phonemodel') loadPhoneModels();
         }
 
@@ -931,6 +954,58 @@
             await fetch(`${API_BASE}/notification/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
             loadNotifications();
         }
+
+        // ===== 关于黄庭书院 =====
+        // 片段包一层和 App 相同的样式，完整文档则原样预览。
+        function aboutPreviewDocument(html) {
+            const trimmed = (html || '').trim();
+            if (/^<!doctype/i.test(trimmed) || /^<html[\s>]/i.test(trimmed)) return trimmed;
+            return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>
+body{margin:0;padding:28px 24px 32px;background:#fff;color:#555;font-size:16px;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;word-wrap:break-word}
+h1,h2{color:#292929;font-size:22px;line-height:1.4;margin:0 0 20px}
+p{margin:0 0 16px}
+a{color:#1976d2}
+img,video{max-width:100%;height:auto}
+.source{margin-top:28px;color:#999;font-size:13px}
+</style></head><body>${trimmed}</body></html>`;
+        }
+
+        function previewAboutPage() {
+            const frame = document.getElementById('about-preview');
+            frame.srcdoc = aboutPreviewDocument(document.getElementById('about-html').value);
+        }
+
+        async function loadAboutPage() {
+            const res = await fetch(`${API_BASE}/page/about_academy`);
+            const json = await res.json();
+            const data = json.data || {};
+            document.getElementById('about-html').value = data.html || '';
+            document.getElementById('about-updated').textContent = data.updated_at ? `最近保存：${data.updated_at}` : '';
+            previewAboutPage();
+        }
+
+        async function saveAboutPage() {
+            const btn = document.getElementById('about-save');
+            const html = document.getElementById('about-html').value;
+            btn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/page/about_academy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ html })
+                });
+                const json = await res.json();
+                if (json.code !== '0') throw new Error(json.msg || '保存失败');
+                const updatedAt = (json.data && json.data.updated_at) || '';
+                document.getElementById('about-updated').textContent = updatedAt ? `已保存 ${updatedAt}` : '已保存';
+            } catch (e) {
+                alert(e.message || '保存失败');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('about-html').addEventListener('input', debounce(previewAboutPage, 200));
 
         // ===== AK/SK =====
         async function loadAksk() {

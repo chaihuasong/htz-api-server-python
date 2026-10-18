@@ -1211,3 +1211,54 @@ def get_app_usage_summary():
             "source_stats": source_stats,
             "today_source_stats": today_source_stats
         }
+
+# ===== App 可配置页面（关于黄庭书院） =====
+
+ABOUT_ACADEMY_PAGE_KEY = "about_academy"
+
+# 首次建表时写入，和客户端内置介绍一致。已有记录不再覆盖，避免重启把后台改过的内容冲掉。
+DEFAULT_ABOUT_ACADEMY_HTML = """<h1>书院初衷与愿景</h1>
+<p>黄庭书院以传承圣贤安心立命之学为愿，致力于引导人们观察本心、认识本性，在日常生活中看见烦恼的来处，走向内心的安宁与自在。</p>
+<p>书院希望打造一处不拘宗派、平等探讨真理的学习之地。来到这里，不以派别相较，只共同探问本心本性与清静解脱之道。</p>
+<p>书院所开设的禅修课程称为“黄庭禅”，通过觉察身心当下的变化，学习在生活的喜怒哀乐中照见自己，逐步理解并安顿内心。</p>
+<p class="source">内容参考黄庭禅官方网站「初衷与愿景」：<a href="https://htz.org.cn/htsy/purpose/">https://htz.org.cn/htsy/purpose/</a></p>
+"""
+
+def init_app_page_table():
+    with get_cursor() as cursor:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS app_page (
+                page_key TEXT PRIMARY KEY,
+                html TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        cursor.execute("SELECT page_key FROM app_page WHERE page_key=?", (ABOUT_ACADEMY_PAGE_KEY,))
+        if cursor.fetchone() is None:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute(
+                "INSERT INTO app_page (page_key, html, updated_at) VALUES (?, ?, ?)",
+                (ABOUT_ACADEMY_PAGE_KEY, DEFAULT_ABOUT_ACADEMY_HTML, now),
+            )
+
+def get_app_page(page_key: str):
+    with get_cursor() as cursor:
+        cursor.execute(
+            "SELECT html, updated_at FROM app_page WHERE page_key=?",
+            (page_key,),
+        )
+        row = _row_to_dict(cursor.fetchone())
+    if not row:
+        return {"html": "", "updated_at": ""}
+    return {"html": row.get("html") or "", "updated_at": row.get("updated_at") or ""}
+
+def save_app_page(page_key: str, html: str):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with get_cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO app_page (page_key, html, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(page_key) DO UPDATE SET
+                html=excluded.html,
+                updated_at=excluded.updated_at
+        """, (page_key, html if html is not None else "", now))
+    return now

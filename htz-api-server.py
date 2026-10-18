@@ -125,6 +125,7 @@ init_phone_model_mapping_table()
 init_user_info_table()
 init_completed_item_table()
 init_gray_release_table()
+init_app_page_table()
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -756,6 +757,17 @@ def release_revoke(version_code: int = Body(..., embed=True)):
     revoke_release(version_code)
     print(f"release_revoke: version_code={version_code}")
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
+
+# ===== 关于黄庭书院（后台可配 HTML，App 直接展示） =====
+@app.get("/htz-api-pyservice/api/v1/page/about_academy")
+def get_about_academy_page():
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": get_app_page(ABOUT_ACADEMY_PAGE_KEY)})
+
+@app.post("/htz-api-pyservice/api/v1/page/about_academy")
+def save_about_academy_page(html: str = Body(default="", embed=True)):
+    updated_at = save_app_page(ABOUT_ACADEMY_PAGE_KEY, html)
+    print(f"save_about_academy_page: {len(html or '')} chars")
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"updated_at": updated_at}})
 
 @app.post("/htz-api-pyservice/api/v1/admin/login")
 def admin_login(username: str = Body(...), password: str = Body(...)):
