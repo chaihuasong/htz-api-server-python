@@ -147,7 +147,8 @@
         .users-table .user-name { font-weight: 600; }
         .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 160px; min-width: 160px; max-width: 160px; }
         .users-table .user-name { display: inline-block; max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
-        .users-table .user-region { color: #667085; }
+        .users-table th.col-region, .users-table td.col-region { width: 96px; min-width: 96px; max-width: 96px; }
+        .users-table .user-region { display: inline-block; max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; color: #667085; }
         .users-table .user-muted { color: #98a2b3; }
         .users-table .user-time { color: #667085; font-variant-numeric: tabular-nums; }
         .users-table th.col-actions,
@@ -369,7 +370,7 @@
                             <th class="users-sort" onclick="sortUsers('id')">ID<span class="users-sort-indicator" id="users-sort-id"></span></th>
                             <th>头像</th>
                             <th class="users-sort" onclick="sortUsers('nickname')">昵称<span class="users-sort-indicator" id="users-sort-nickname"></span></th>
-                            <th class="users-sort" onclick="sortUsers('region')">地区<span class="users-sort-indicator" id="users-sort-region"></span></th>
+                            <th class="users-sort col-region" onclick="sortUsers('region')">地区<span class="users-sort-indicator" id="users-sort-region"></span></th>
                             <th class="users-sort" onclick="sortUsers('telephone')">电话<span class="users-sort-indicator" id="users-sort-telephone"></span></th>
                             <th class="users-sort" onclick="sortUsers('note')">备注<span class="users-sort-indicator" id="users-sort-note"></span></th>
                             <th class="users-sort" onclick="sortUsers('create_time')">创建时间<span class="users-sort-indicator" id="users-sort-create_time"></span></th>
@@ -1155,7 +1156,7 @@
                     <td class="user-id">${item.id}</td>
                     <td>${avatarHtml}</td>
                     <td><span class="link-cell user-name" title="点击查看用户资料" onclick="showUserDetail(${item.id})">${escapeHtml(item.nickname || '微信用户')}</span></td>
-                    <td class="user-region">${escapeHtml(region) || '<span class="user-muted">-</span>'}</td>
+                    <td class="col-region"><span class="user-region" title="${escapeHtml(region)}">${escapeHtml(region) || '<span class="user-muted">-</span>'}</span></td>
                     <td>${item.telephone || '<span class="user-muted">未绑定</span>'}</td>
                     <td><span class="text-truncate" title="${(item.note || '').replace(/"/g,'&quot;')}">${item.note || '-'}</span></td>
                     <td class="user-time">${item.create_time || '-'}</td>
