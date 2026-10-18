@@ -98,11 +98,16 @@ _LOG_USER_NAME_SQL = """
          ELSE '未知(旧版本)' END
 """
 
-def upsert_user_wechat(wechat_user_info: dict):
-    """微信扫码回调中直接写入/更新用户信息（upsert），避免 App 端崩溃导致数据丢失"""
+def upsert_user_wechat(wechat_user_info: dict, platform: str = ""):
+    """微信扫码回调中直接写入/更新用户信息（upsert），避免 App 端崩溃导致数据丢失。
+
+    platform 由扫码时的微信 UA 判断，只接受 android / ios。识别不了传空字符串，
+    新用户备注留空；已有用户识别成功才覆盖备注，识别失败则保留原值。
+    """
     unionid = wechat_user_info.get("unionid", "").strip()
     if not unionid:
         return
+    platform = platform if platform in ("android", "ios") else ""
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     existing = select_user_dict_by_unionid(unionid)
     with get_cursor() as cursor:
@@ -120,10 +125,12 @@ def upsert_user_wechat(wechat_user_info: dict):
             else:
                 headimgurl = wechat_user_info.get("headimgurl", old_head)
 
-            cursor.execute("""
+            note_sql = ", note=?" if platform else ""
+            note_args = (platform,) if platform else ()
+            cursor.execute(f"""
                 UPDATE user_info SET
                     nickname=?, openid=?, sex=?, headimgurl=?, country=?,
-                    province=?, city=?, language=?, last_update_time=?
+                    province=?, city=?, language=?{note_sql}, last_update_time=?
                 WHERE unionid=?
             """, (
                 _keep("nickname"),
@@ -134,6 +141,7 @@ def upsert_user_wechat(wechat_user_info: dict):
                 _keep("province"),
                 _keep("city"),
                 _keep("language"),
+                *note_args,
                 now,
                 unionid
             ))
@@ -157,7 +165,7 @@ def upsert_user_wechat(wechat_user_info: dict):
                 "",   # telephone
                 "",   # pwd
                 "",   # sign
-                "android",  # note
+                platform,  # note：扫码时识别到的平台，识别不了则为空
                 now, now
             ))
 

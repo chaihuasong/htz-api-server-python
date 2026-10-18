@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, Body
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, Body, Request
 from fastapi.exceptions  import RequestValidationError
 from fastapi.responses  import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -545,6 +545,16 @@ def qr_login_consume(session_id: str = Body(..., embed=True)):
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"status": "consumed"}})
 
 
+def _platform_from_user_agent(user_agent: str) -> str:
+    """微信内置浏览器的 UA 带系统。识别不了返回空，调用方不要再默认成 android。"""
+    ua = (user_agent or "").lower()
+    if "iphone" in ua or "ipad" in ua or "ios" in ua:
+        return "ios"
+    if "android" in ua:
+        return "android"
+    return ""
+
+
 def _wx_callback_page(icon: str, msg: str, tip: str):
     """扫码授权后微信里显示的结果页"""
     return f"""
@@ -591,7 +601,7 @@ def _fetch_main_server_token(user_info: dict):
 
 
 @app.get("/htz-api-pyservice/api/v1/wx/callback", response_class=HTMLResponse)
-def wx_callback(code: str = "", state: str = ""):
+def wx_callback(request: Request, code: str = "", state: str = ""):
     """微信网站应用 OAuth 回调：用 code 直接换取用户信息，更新 session"""
     print(f"wx_callback code={code} state={state}")
     if not code or not state:
@@ -637,9 +647,10 @@ def wx_callback(code: str = "", state: str = ""):
         user_info.setdefault("privilege", [])
 
         # 3.5. 直接写入/更新 user_info 表（upsert），避免 App 端崩溃导致用户数据丢失
+        platform = _platform_from_user_agent(request.headers.get("user-agent", ""))
         try:
-            upsert_user_wechat(user_info)
-            print(f"wx_callback upsert_user_wechat done unionid={user_info.get('unionid')}")
+            upsert_user_wechat(user_info, platform)
+            print(f"wx_callback upsert_user_wechat done unionid={user_info.get('unionid')} platform={platform or 'unknown'}")
         except Exception as e:
             print(f"wx_callback upsert_user_wechat error: {e}")
 
