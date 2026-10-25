@@ -180,7 +180,9 @@
         .usage-table tbody tr:hover td { background: #f1f7ff; }
         .usage-table tbody tr:last-child td { border-bottom: 0; }
         .usage-table th:nth-child(4), .usage-table td:nth-child(4) { width: 150px; min-width: 150px; max-width: 150px; }
+        .usage-table th:nth-child(5), .usage-table td:nth-child(5) { width: 120px; min-width: 120px; max-width: 160px; }
         .usage-table .usage-nickname { display: inline-block; max-width: 124px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+        .usage-table .usage-note2 { display: inline-block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
         .usage-table .usage-id, .usage-table .usage-date, .usage-table .usage-number { font-variant-numeric: tabular-nums; }
         .usage-table .usage-id { color: #98a2b3; }
         .usage-table .usage-number { text-align: right; }
@@ -476,9 +478,11 @@
                         <option value="">所有字段</option>
                         <option value="date">日期</option><option value="device_id">设备ID</option>
                         <option value="user_id">用户ID</option><option value="nickname">昵称</option>
-                        <option value="source">来源</option><option value="phone_model">手机型号</option>
+                        <option value="note2">备注2</option>
+                        <option value="source">来源</option><option value="version">版本</option>
+                        <option value="phone_model">手机型号</option>
                         <option value="os_version">系统版本</option><option value="network_type">网络类型</option>
-                        <option value="version">版本</option><option value="pkg">包名</option>
+                        <option value="pkg">包名</option>
                         <option value="id">记录ID</option><option value="open_count">打开次数</option>
                         <option value="duration_ms">前台使用时长</option><option value="play_duration_ms">播放时长</option>
                     </select>
@@ -493,15 +497,16 @@
                             <th class="usage-sort" onclick="sortUsage('device_id')">设备ID<span class="usage-sort-indicator" id="usage-sort-device_id"></span></th>
                             <th class="usage-sort" onclick="sortUsage('user_id')">用户<span class="usage-sort-indicator" id="usage-sort-user_id"></span></th>
                             <th class="usage-sort" onclick="sortUsage('nickname')">昵称<span class="usage-sort-indicator" id="usage-sort-nickname"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('note2')">备注2<span class="usage-sort-indicator" id="usage-sort-note2"></span></th>
                             <th class="usage-sort" onclick="sortUsage('date')">日期<span class="usage-sort-indicator" id="usage-sort-date"></span></th>
                             <th class="usage-sort" onclick="sortUsage('open_count')">打开次数<span class="usage-sort-indicator" id="usage-sort-open_count"></span></th>
                             <th class="usage-sort" onclick="sortUsage('duration_ms')">前台使用<span class="usage-sort-indicator" id="usage-sort-duration_ms"></span></th>
                             <th class="usage-sort" onclick="sortUsage('play_duration_ms')">播放时长<span class="usage-sort-indicator" id="usage-sort-play_duration_ms"></span></th>
                             <th class="usage-sort" onclick="sortUsage('source')">来源<span class="usage-sort-indicator" id="usage-sort-source"></span></th>
+                            <th class="usage-sort" onclick="sortUsage('version')">版本<span class="usage-sort-indicator" id="usage-sort-version"></span></th>
                             <th class="usage-sort" onclick="sortUsage('phone_model')">手机型号<span class="usage-sort-indicator" id="usage-sort-phone_model"></span></th>
                             <th class="usage-sort" onclick="sortUsage('os_version')">系统版本<span class="usage-sort-indicator" id="usage-sort-os_version"></span></th>
                             <th class="usage-sort" onclick="sortUsage('network_type')">网络类型<span class="usage-sort-indicator" id="usage-sort-network_type"></span></th>
-                            <th class="usage-sort" onclick="sortUsage('version')">版本<span class="usage-sort-indicator" id="usage-sort-version"></span></th>
                             <th class="usage-sort" onclick="sortUsage('pkg')">包名<span class="usage-sort-indicator" id="usage-sort-pkg"></span></th>
                         </tr>
                     </thead>
@@ -1799,7 +1804,7 @@ img,video{max-width:100%;height:auto}
         function renderUsage(data) {
             const tbody = document.getElementById('usage-table');
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="14" class="empty">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="15" class="empty">暂无数据</td></tr>';
                 return;
             }
             tbody.innerHTML = data.map(item => `
@@ -1814,15 +1819,18 @@ img,video{max-width:100%;height:auto}
                     <td>${item.user_id
                         ? `<span class="usage-nickname link-cell" title="${escapeHtml(usageNickname(item.nickname))}" onclick="showUserDetailByUnionid('${jsArg(item.user_id)}')">${escapeHtml(usageNickname(item.nickname))}</span>`
                         : '-'}</td>
+                    <td>${item.note2
+                        ? `<span class="usage-note2" title="${escapeHtml(item.note2)}">${escapeHtml(item.note2)}</span>`
+                        : '-'}</td>
                     <td class="usage-date">${item.date || ''}</td>
                     <td class="usage-number">${item.open_count || 0}</td>
                     <td class="usage-number">${formatDuration(item.duration_ms || 0)}</td>
                     <td class="usage-number">${formatDuration(item.play_duration_ms || 0)}</td>
                     <td>${item.source || '-'}</td>
+                    <td><span class="badge badge-info">${item.version || ''}</span></td>
                     <td class="usage-model">${item.phone_model ? (item.phone_model + (item.marketing_model ? '<br><span style="font-size:12px;color:#1976d2">→ ' + item.marketing_model + '</span>' : '') + (item.engineering_model ? '<br><span style="font-size:11px;color:#999">' + item.engineering_model + '</span>' : '')) : '-'}</td>
                     <td>${item.os_version || '-'}</td>
                     <td>${item.network_type || '-'}</td>
-                    <td><span class="badge badge-info">${item.version || ''}</span></td>
                     <td>${item.pkg || ''}</td>
                 </tr>
             `).join('');
@@ -1832,7 +1840,7 @@ img,video{max-width:100%;height:auto}
             const keyword = (document.getElementById('usage-search').value || '').trim().toLowerCase();
             const field = document.getElementById('usage-filter-field').value;
             const columnKeyword = (document.getElementById('usage-column-search').value || '').trim().toLowerCase();
-            const searchable = ['device_id', 'user_id', 'nickname', 'date', 'version', 'phone_model', 'marketing_model', 'engineering_model', 'source', 'os_version', 'network_type', 'pkg', 'id', 'open_count', 'duration_ms', 'play_duration_ms'];
+            const searchable = ['device_id', 'user_id', 'nickname', 'note2', 'date', 'version', 'phone_model', 'marketing_model', 'engineering_model', 'source', 'os_version', 'network_type', 'pkg', 'id', 'open_count', 'duration_ms', 'play_duration_ms'];
             const filtered = usageData.filter(u => {
                 const matchesGlobal = !keyword || searchable.some(key => String(u[key] ?? '').toLowerCase().includes(keyword));
                 const fieldValue = field === 'duration_ms' ? formatDuration(u.duration_ms || 0)

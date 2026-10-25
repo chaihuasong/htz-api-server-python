@@ -742,7 +742,8 @@ def get_all_app_usage():
             SELECT a.*,
                    CASE WHEN a.user_id = '' THEN '未登录'
                         WHEN u.nickname IS NULL OR u.nickname = '' THEN '-'
-                        ELSE u.nickname END as nickname
+                        ELSE u.nickname END as nickname,
+                   COALESCE(u.note2, '') AS note2
             FROM app_usage a
             LEFT JOIN user_info u ON a.user_id = u.unionid
             ORDER BY a.date DESC, a.id DESC
