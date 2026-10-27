@@ -6,3 +6,9 @@ __pycache__/
 htz.db
 htz.db-shm
 htz.db-wal
+
+# 后台「文件」页上传的图片等，不进仓库
+static/uploads/
+
+# 后台管理端口令/令牌，不进仓库（见 htz-api-server.py _load_admin_secret）
+admin_secret.json

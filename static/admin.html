@@ -238,9 +238,12 @@
         .about-html { width: 100%; min-height: 520px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; resize: vertical; }
         .about-html:focus { outline: none; border-color: #1976d2; }
         .about-preview { width: 100%; min-height: 520px; border: 1px solid #e8edf3; border-radius: 6px; background: #fff; }
+        .file-url { width: min(420px, 46vw); padding: 6px 8px; border: 1px solid #e3e9f0; border-radius: 6px; font-size: 12px; color: #344054; background: #fbfcfe; }
+        .file-thumb { display: block; width: 48px; height: 48px; object-fit: cover; border-radius: 6px; background: #eef2f7; }
         @media (max-width: 900px) {
             .about-layout { grid-template-columns: 1fr; }
             .about-html, .about-preview { min-height: 320px; }
+            .file-url { width: 180px; }
         }
         @media (max-width: 700px) { .stats-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); gap: 9px; } .stat-card { min-height: 88px; padding: 13px 14px; } .stat-card .stat-value { font-size: 20px; } }
     </style>
@@ -274,12 +277,14 @@
     </div>
     <div class="container">
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('usage')">用量统计</button>
+            <button class="tab" onclick="switchTab('usage')">用量统计</button>
             <button class="tab" onclick="switchTab('users')">用户信息</button>
             <button class="tab" onclick="switchTab('logs')">日志信息</button>
             <button class="tab" onclick="switchTab('feedback')">意见反馈</button>
             <button class="tab" onclick="switchTab('notification')">系统通知</button>
             <button class="tab" onclick="switchTab('about')">关于书院</button>
+            <button class="tab active" onclick="switchTab('help')">功能帮助</button>
+            <button class="tab" onclick="switchTab('files')">文件</button>
             <button class="tab" onclick="switchTab('aksk')">AK/SK 管理</button>
             <button class="tab" onclick="switchTab('phonemodel')">机型映射</button>
         </div>
@@ -347,6 +352,40 @@
                     <textarea id="about-html" class="about-html" spellcheck="false" placeholder="在这里编写 HTML"></textarea>
                     <iframe id="about-preview" class="about-preview" title="预览"></iframe>
                 </div>
+            </div>
+            <!-- 功能帮助（原 help.md） -->
+            <div id="help-panel" class="panel active">
+                <div class="toolbar">
+                    <span id="help-updated" style="color:#667085;font-size:13px"></span>
+                    <button class="btn btn-primary refresh-btn" id="help-save" onclick="saveHelpPage()">保存</button>
+                </div>
+                <p class="about-hint">这里的 Markdown 会显示在 App「设置 - 功能说明」。可以写 Markdown，也可以夹 HTML。图片请先到「文件」上传，再把完整地址贴进来。内容留空时，App 仍使用原来的帮助文档。</p>
+                <div class="about-layout">
+                    <textarea id="help-markdown" class="about-html" spellcheck="false" placeholder="在这里编写 Markdown"></textarea>
+                    <iframe id="help-preview" class="about-preview" title="预览"></iframe>
+                </div>
+            </div>
+            <!-- 文件上传 -->
+            <div id="files-panel" class="panel">
+                <div class="toolbar">
+                    <input type="file" id="admin-file-input" multiple accept="image/*,video/*,.pdf">
+                    <button class="btn btn-primary" id="admin-file-upload" onclick="uploadAdminFiles()">上传</button>
+                    <button class="btn btn-success refresh-btn" onclick="loadAdminFiles()">刷新</button>
+                </div>
+                <p class="about-hint">上传后的文件放在 /static/uploads/。下表是当前目录，地址按你打开本页的域名拼出来，贴到功能帮助或关于书院里即可。手机要能打开这个地址，请用线上后台域名打开本页再复制。</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>预览</th>
+                            <th>文件名</th>
+                            <th>大小</th>
+                            <th>时间</th>
+                            <th>地址</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="files-table"></tbody>
+                </table>
             </div>
             <!-- AK/SK 管理面板 -->
             <div id="aksk-panel" class="panel">
@@ -454,7 +493,7 @@
                 </table>
             </div>
             <!-- 用量统计面板 -->
-            <div id="usage-panel" class="panel active">
+            <div id="usage-panel" class="panel">
                 <div class="toolbar">
                     <button class="btn btn-success refresh-btn" onclick="loadUsage()">刷新</button>
                 </div>
@@ -727,6 +766,8 @@
             else if (tab === 'feedback') loadFeedback();
             else if (tab === 'notification') loadNotifications();
             else if (tab === 'about') loadAboutPage();
+            else if (tab === 'help') loadHelpPage();
+            else if (tab === 'files') loadAdminFiles();
             else if (tab === 'phonemodel') loadPhoneModels();
         }
 
@@ -1011,6 +1052,202 @@ img,video{max-width:100%;height:auto}
         }
 
         document.getElementById('about-html').addEventListener('input', debounce(previewAboutPage, 200));
+
+        // ===== 功能帮助 =====
+        function inlineMarkdown(text) {
+            return escapeHtml(text)
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+        }
+
+        function markdownToHtml(src) {
+            const lines = (src || '').replace(/\r\n/g, '\n').split('\n');
+            const out = [];
+            let list = '';
+            const closeList = () => {
+                if (!list) return;
+                out.push(list === 'ul' ? '</ul>' : '</ol>');
+                list = '';
+            };
+            lines.forEach((raw) => {
+                const trimmed = raw.trim();
+                if (!trimmed) { closeList(); return; }
+                if (trimmed.startsWith('<')) { closeList(); out.push(raw); return; }
+                if (/^---+$/.test(trimmed)) { closeList(); out.push('<hr>'); return; }
+                const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
+                if (heading) {
+                    closeList();
+                    const level = heading[1].length;
+                    out.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+                    return;
+                }
+                if (trimmed.startsWith('> ')) {
+                    closeList();
+                    out.push(`<blockquote>${inlineMarkdown(trimmed.slice(2))}</blockquote>`);
+                    return;
+                }
+                const bullet = /^[-*]\s+(.*)$/.exec(trimmed);
+                if (bullet) {
+                    if (list !== 'ul') { closeList(); out.push('<ul>'); list = 'ul'; }
+                    out.push(`<li>${inlineMarkdown(bullet[1])}</li>`);
+                    return;
+                }
+                const ordered = /^\d+\.\s+(.*)$/.exec(trimmed);
+                if (ordered) {
+                    if (list !== 'ol') { closeList(); out.push('<ol>'); list = 'ol'; }
+                    out.push(`<li>${inlineMarkdown(ordered[1])}</li>`);
+                    return;
+                }
+                closeList();
+                out.push(`<p>${inlineMarkdown(trimmed)}</p>`);
+            });
+            closeList();
+            return out.join('\n');
+        }
+
+        function previewHelpPage() {
+            const frame = document.getElementById('help-preview');
+            frame.srcdoc = aboutPreviewDocument(markdownToHtml(document.getElementById('help-markdown').value));
+        }
+
+        async function loadHelpPage() {
+            const res = await fetch(`${API_BASE}/page/feature_help`);
+            const json = await res.json();
+            const data = json.data || {};
+            document.getElementById('help-markdown').value = data.markdown || '';
+            document.getElementById('help-updated').textContent = data.updated_at ? `最近保存：${data.updated_at}` : '';
+            previewHelpPage();
+        }
+
+        async function saveHelpPage() {
+            const btn = document.getElementById('help-save');
+            const markdown = document.getElementById('help-markdown').value;
+            btn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/page/feature_help`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ markdown })
+                });
+                const json = await res.json();
+                if (json.code !== '0') throw new Error(json.msg || '保存失败');
+                const updatedAt = (json.data && json.data.updated_at) || '';
+                document.getElementById('help-updated').textContent = updatedAt ? `已保存 ${updatedAt}` : '已保存';
+            } catch (e) {
+                alert(e.message || '保存失败');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('help-markdown').addEventListener('input', debounce(previewHelpPage, 200));
+
+        // ===== 文件上传 =====
+        function filePublicUrl(path) {
+            if (!path) return '';
+            if (/^https?:\/\//i.test(path)) return path;
+            return `${location.origin}${path.startsWith('/') ? path : `/${path}`}`;
+        }
+
+        function formatBytes(size) {
+            const n = Number(size) || 0;
+            if (n < 1024) return `${n} B`;
+            if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+            return `${(n / 1024 / 1024).toFixed(1)} MB`;
+        }
+
+        function isImageName(name) {
+            return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name || '');
+        }
+
+        async function copyFileUrl(url, btn) {
+            const text = filePublicUrl(url);
+            try {
+                await navigator.clipboard.writeText(text);
+            } catch (e) {
+                const input = document.createElement('textarea');
+                input.value = text;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                input.remove();
+            }
+            const old = btn.textContent;
+            btn.textContent = '已复制';
+            setTimeout(() => { btn.textContent = old; }, 1200);
+        }
+
+        async function loadAdminFiles() {
+            const tbody = document.getElementById('files-table');
+            const res = await fetch(`${API_BASE}/admin/files`);
+            const json = await res.json();
+            const files = json.data || [];
+            if (!files.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty">还没有上传文件</td></tr>';
+                return;
+            }
+            tbody.innerHTML = files.map(item => {
+                const url = filePublicUrl(item.url);
+                const preview = isImageName(item.name)
+                    ? `<img class="file-thumb" src="${escapeHtml(item.url)}" alt="">`
+                    : '';
+                return `<tr>
+                    <td>${preview}</td>
+                    <td>${escapeHtml(item.name)}</td>
+                    <td>${formatBytes(item.size)}</td>
+                    <td>${escapeHtml(item.mtime || '')}</td>
+                    <td><input class="file-url" readonly value="${escapeHtml(url)}" onclick="this.select()"></td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="copyFileUrl('${jsArg(item.url)}', this)">复制</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteAdminFile('${jsArg(item.name)}')">删除</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function uploadAdminFiles() {
+            const input = document.getElementById('admin-file-input');
+            const btn = document.getElementById('admin-file-upload');
+            const selected = [...(input.files || [])];
+            if (!selected.length) {
+                alert('请先选择文件');
+                return;
+            }
+            btn.disabled = true;
+            const errors = [];
+            try {
+                for (const file of selected) {
+                    const body = new FormData();
+                    body.append('file', file);
+                    const res = await fetch(`${API_BASE}/admin/files/upload`, { method: 'POST', body });
+                    const json = await res.json();
+                    if (json.code !== '0') errors.push(`${file.name}: ${json.msg || '上传失败'}`);
+                }
+            } catch (e) {
+                errors.push(e.message || '上传失败');
+            } finally {
+                btn.disabled = false;
+                input.value = '';
+            }
+            await loadAdminFiles();
+            if (errors.length) alert(errors.join('\n'));
+        }
+
+        async function deleteAdminFile(name) {
+            if (!confirm(`删除 ${name}？已经贴到帮助里的地址会失效。`)) return;
+            const res = await fetch(`${API_BASE}/admin/files/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            const json = await res.json();
+            if (json.code !== '0') {
+                alert(json.msg || '删除失败');
+                return;
+            }
+            loadAdminFiles();
+        }
 
         // ===== AK/SK =====
         async function loadAksk() {
@@ -2103,19 +2340,45 @@ img,video{max-width:100%;height:auto}
         }
 
         // 初始化加载
-        loadUsage();
+        loadHelpPage();
     </script>
     </div><!-- /#main-content -->
 
     <!-- 登录逻辑 -->
     <script>
+        // 全局给管理接口请求带上 Bearer token，并统一处理 401（token 失效回登录页）
+        (function() {
+            const origFetch = window.fetch;
+            window.fetch = function(input, init) {
+                init = init || {};
+                const token = sessionStorage.getItem('htz_admin_token');
+                const url = typeof input === 'string' ? input : (input && input.url) || '';
+                if (token && url.indexOf('/htz-api-pyservice/') !== -1) {
+                    const headers = init.headers ? Object.assign({}, init.headers) : {};
+                    headers['Authorization'] = 'Bearer ' + token;
+                    init.headers = headers;
+                }
+                return origFetch.call(this, input, init).then(function(res) {
+                    if (res.status === 401 && url.indexOf('/htz-api-pyservice/') !== -1 && url.indexOf('/admin/login') === -1) {
+                        sessionStorage.removeItem('htz_admin_auth');
+                        sessionStorage.removeItem('htz_admin_token');
+                        const ov = document.getElementById('login-overlay');
+                        const mn = document.getElementById('main-content');
+                        if (ov) ov.classList.remove('hidden');
+                        if (mn) mn.style.display = 'none';
+                    }
+                    return res;
+                });
+            };
+        })();
+
         (function() {
             const overlay = document.getElementById('login-overlay');
             const main = document.getElementById('main-content');
             const errorEl = document.getElementById('login-error');
 
             // 检查是否已登录
-            if (sessionStorage.getItem('htz_admin_auth') === '1') {
+            if (sessionStorage.getItem('htz_admin_token')) {
                 overlay.classList.add('hidden');
                 main.style.display = '';
             }
@@ -2141,6 +2404,9 @@ img,video{max-width:100%;height:auto}
                     const json = await res.json();
                     if (json.code === '0') {
                         sessionStorage.setItem('htz_admin_auth', '1');
+                        if (json.data && json.data.token) {
+                            sessionStorage.setItem('htz_admin_token', json.data.token);
+                        }
                         overlay.classList.add('hidden');
                         main.style.display = '';
                     } else {
@@ -2161,6 +2427,7 @@ img,video{max-width:100%;height:auto}
 
         function logout() {
             sessionStorage.removeItem('htz_admin_auth');
+            sessionStorage.removeItem('htz_admin_token');
             location.reload();
         }
     </script>

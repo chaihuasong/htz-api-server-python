@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 import logging
 import os
+import re
 import uuid
 import json
 import time
@@ -21,7 +22,7 @@ from typing import List
 # ===== 与十年持志（TenYears）系统的用户资料双向同步配置 =====
 # 十年持志后端（Spring Boot + MongoDB）入站同步端点，按手机号匹配合并公共资料字段。
 # 可按部署环境调整（同机可改为内网地址）。
-TENYEARS_SYNC_URL = "http://app.htzchina.org:8081/syncByTelephone"
+TENYEARS_SYNC_URL = "http://htzclass.com:8081/syncByTelephone"
 
 
 def _push_user_to_tenyears(payload: dict):
@@ -62,7 +63,7 @@ def _push_user_to_tenyears(payload: dict):
 # 公众号 APPID，appsecret 存在 aksk 表 appName='htz-gzh' 的 accessKeySecure 字段
 WX_GZH_APPID = "wx83aec75c3ca58f0e"
 # redirect_uri 须与公众号后台「网页授权域名」一致
-WX_REDIRECT_URI = "http://app.htzchina.org/htz-api-pyservice/api/v1/wx/callback"
+WX_REDIRECT_URI = "https://htzclass.com/htz-api-pyservice/api/v1/wx/callback"
 # 二维码会话有效期（秒）。
 # 同一台手机扫码要走「截图 → 打开微信 → 扫一扫相册 → 授权 → 返回 App」，5 分钟经常不够用。
 QR_SESSION_EXPIRE_SECONDS = 600
@@ -75,6 +76,105 @@ MAIN_SERVER_LOGIN_RETRY_INTERVAL = 1
 # 初始化日志记录器
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
+
+# ===== 网页管理后台认证配置 =====
+# 管理端口令与令牌：优先环境变量，其次 gitignored 的 admin_secret.json；
+# 两者都没有时令牌为空 → 管理接口一律 401（fail-closed，避免回落到弱默认值）。
+def _load_admin_secret() -> dict:
+    cfg = {}
+    secret_path = os.path.join(os.path.dirname(__file__), "admin_secret.json")
+    try:
+        with open(secret_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f) or {}
+    except (OSError, ValueError):
+        pass
+    return cfg
+
+_admin_secret = _load_admin_secret()
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = os.environ.get("HTZ_ADMIN_PASSWORD") or _admin_secret.get("password") or ""
+ADMIN_TOKEN = os.environ.get("HTZ_ADMIN_TOKEN") or _admin_secret.get("token") or ""
+if not ADMIN_TOKEN:
+    logger.warning("ADMIN_TOKEN 未配置（无 HTZ_ADMIN_TOKEN 环境变量或 admin_secret.json），管理接口将全部 401")
+
+# 客户端可匿名拉取 AK/SK 的 appName 白名单（App 端 OSS 上传、短信验证码需要）
+PUBLIC_AKSK_APPNAMES = {"htz-oss", "htz-sms"}
+
+# 需要管理端认证的接口（method, path 精确匹配）。App 端接口不在此列，保持匿名。
+ADMIN_ENDPOINTS = {
+    ("GET", "/htz-api-pyservice/api/v1/aksk/list"),
+    ("POST", "/htz-api-pyservice/api/v1/aksk/add"),
+    ("POST", "/htz-api-pyservice/api/v1/aksk/update"),
+    ("POST", "/htz-api-pyservice/api/v1/aksk/delete"),
+    ("GET", "/htz-api-pyservice/api/v1/userinfo/list"),
+    ("POST", "/htz-api-pyservice/api/v1/userinfo/delete"),
+    ("GET", "/htz-api-pyservice/api/v1/log/list"),
+    ("GET", "/htz-api-pyservice/api/v1/log/detail"),
+    ("GET", "/htz-api-pyservice/api/v1/usage/list"),
+    ("GET", "/htz-api-pyservice/api/v1/usage/summary"),
+    ("GET", "/htz-api-pyservice/api/v1/usage/phone-model-stats"),
+    ("GET", "/htz-api-pyservice/api/v1/usage/user-detail"),
+    ("GET", "/htz-api-pyservice/api/v1/usage/device-detail"),
+    ("GET", "/htz-api-pyservice/api/v1/feedback/list"),
+    ("POST", "/htz-api-pyservice/api/v1/feedback/update"),
+    ("POST", "/htz-api-pyservice/api/v1/feedback/delete"),
+    ("GET", "/htz-api-pyservice/api/v1/notification/list"),
+    ("POST", "/htz-api-pyservice/api/v1/notification/add"),
+    ("POST", "/htz-api-pyservice/api/v1/notification/update"),
+    ("POST", "/htz-api-pyservice/api/v1/notification/delete"),
+    ("GET", "/htz-api-pyservice/api/v1/phone-model-mapping/list"),
+    ("POST", "/htz-api-pyservice/api/v1/phone-model-mapping/add"),
+    ("POST", "/htz-api-pyservice/api/v1/phone-model-mapping/update"),
+    ("POST", "/htz-api-pyservice/api/v1/phone-model-mapping/delete"),
+    ("GET", "/htz-api-pyservice/api/v1/release/list"),
+    ("POST", "/htz-api-pyservice/api/v1/release/revoke"),
+    ("POST", "/htz-api-pyservice/api/v1/page/about_academy"),
+    ("POST", "/htz-api-pyservice/api/v1/page/feature_help"),
+    ("GET", "/htz-api-pyservice/api/v1/admin/files"),
+    ("POST", "/htz-api-pyservice/api/v1/admin/files/upload"),
+    ("POST", "/htz-api-pyservice/api/v1/admin/files/delete"),
+}
+
+
+class AdminAuthMiddleware:
+    """给管理接口加 Bearer token 校验。
+
+    用纯 ASGI 中间件而非 BaseHTTPMiddleware，避免对 /static 大文件、视频 Range 等
+    流式响应造成影响；只对上面 ADMIN_ENDPOINTS 精确匹配的请求做拦截，其余透传。
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or (scope["method"], scope["path"]) not in ADMIN_ENDPOINTS:
+            await self.app(scope, receive, send)
+            return
+
+        auth = ""
+        for name, value in scope["headers"]:
+            if name == b"authorization":
+                auth = value.decode("latin-1")
+                break
+        token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+
+        if not ADMIN_TOKEN:
+            status, body = 503, b'{"code": "503", "msg": "admin auth not configured", "data": null}'
+        elif token != ADMIN_TOKEN:
+            status, body = 401, b'{"code": "401", "msg": "unauthorized", "data": null}'
+        else:
+            await self.app(scope, receive, send)
+            return
+
+        await send({
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
 
 app = FastAPI()
 
@@ -101,11 +201,14 @@ class SelectiveGZipMiddleware:
 
 
 app.add_middleware(SelectiveGZipMiddleware)
+app.add_middleware(AdminAuthMiddleware)
 
 # ===== 静态文件 =====
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 FEEDBACK_UPLOAD_DIR = os.path.join(STATIC_DIR, "feedback")
+ADMIN_UPLOAD_DIR = os.path.join(STATIC_DIR, "uploads")
 os.makedirs(FEEDBACK_UPLOAD_DIR, exist_ok=True)
+os.makedirs(ADMIN_UPLOAD_DIR, exist_ok=True)
 # 将 static/ 目录暴露为 /static/ 静态资源
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -114,6 +217,9 @@ MAX_IMAGE_SIZE = 10 * 1024 * 1024
 MAX_VIDEO_SIZE = 50 * 1024 * 1024
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 ALLOWED_VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".3gp", ".webm", ".mkv"}
+# 后台「文件」页上传，给功能帮助、关于书院贴图片地址用
+ALLOWED_ADMIN_UPLOAD_EXTS = ALLOWED_IMAGE_EXTS | ALLOWED_VIDEO_EXTS | {".pdf"}
+MAX_ADMIN_UPLOAD_SIZE = 20 * 1024 * 1024
 
 # 初始化数据库表
 init_log_info_table()
@@ -164,15 +270,18 @@ def get_loginfo(pkg: str):
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 @app.get("/htz-api-pyservice/api/v1/getaksk")
-def getaksk(appName: str):
-    print(appName)
+def getaksk(appName: str, authorization: str = Header(default="")):
+    # 服务端专用密钥（服务号/公众号 appsecret 等）不允许匿名拉取，App 端只需 OSS/SMS
+    if (appName or "").strip() not in PUBLIC_AKSK_APPNAMES:
+        token = authorization[7:].strip() if authorization.lower().startswith("bearer ") else ""
+        if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+            return JSONResponse({"code": "401", "msg": "unauthorized", "data": None}, status_code=401)
     result = get_ak_sk(appName)
-    print(result)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 @app.post("/htz-api-pyservice/api/v1/userinfo/add")
 def save_userinfo(request_item: UserInfoItem):
-    print(f"save_userinfo unionid:{request_item}")
+    print(f"save_userinfo unionid:{request_item.unionid}")
     existing_user = select_user_dict_by_unionid(request_item.unionid)
     if existing_user:
         print(f"Updating user with unionid: {request_item.unionid}")
@@ -184,7 +293,7 @@ def save_userinfo(request_item: UserInfoItem):
 
 @app.post("/htz-api-pyservice/api/v1/userinfo/update")
 def update_userinfo(request_item: UserInfoItem):
-    print(f"update_userinfo unionid:{request_item}")
+    print(f"update_userinfo unionid:{request_item.unionid}")
     update_user_by_unionid(request_item)
     # 写时出站：把公共资料字段同步到十年持志系统（按手机号）
     _push_user_to_tenyears({
@@ -267,13 +376,13 @@ def list_aksk():
 
 @app.post("/htz-api-pyservice/api/v1/aksk/add")
 def add_aksk(request_item: AkskRequestItem):
-    print(f"add_aksk: {request_item}")
+    print(f"add_aksk: appName={request_item.appName}")
     insert_aksk(request_item)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.post("/htz-api-pyservice/api/v1/aksk/update")
 def update_aksk_api(request_item: AkskRequestItem):
-    print(f"update_aksk: {request_item}")
+    print(f"update_aksk: appName={request_item.appName}")
     update_aksk(request_item)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
@@ -674,9 +783,7 @@ def wx_callback(request: Request, code: str = "", state: str = ""):
 
 
 # ===== 网页管理后台 =====
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin@1234"
-ADMIN_TOKEN = "htz_admin_token_2024"
+# 认证配置已上移到文件顶部（_load_admin_secret / AdminAuthMiddleware）
 
 # ===== 手机型号映射管理 =====
 
@@ -779,6 +886,100 @@ def save_about_academy_page(html: str = Body(default="", embed=True)):
     updated_at = save_app_page(ABOUT_ACADEMY_PAGE_KEY, html)
     print(f"save_about_academy_page: {len(html or '')} chars")
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"updated_at": updated_at}})
+
+# ===== 功能帮助（后台可改 Markdown，App「功能说明」直接展示） =====
+@app.get("/htz-api-pyservice/api/v1/page/feature_help")
+def get_feature_help_page():
+    page = get_app_page(FEATURE_HELP_PAGE_KEY)
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {
+        "markdown": page.get("html") or "",
+        "updated_at": page.get("updated_at") or "",
+    }})
+
+@app.post("/htz-api-pyservice/api/v1/page/feature_help")
+def save_feature_help_page(markdown: str = Body(default="", embed=True)):
+    updated_at = save_app_page(FEATURE_HELP_PAGE_KEY, markdown)
+    print(f"save_feature_help_page: {len(markdown or '')} chars")
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"updated_at": updated_at}})
+
+def _safe_upload_name(filename: str) -> str:
+    base = os.path.basename(filename or "file")
+    name, ext = os.path.splitext(base)
+    ext = ext.lower()
+    name = re.sub(r"[^\w.\-]+", "_", name, flags=re.UNICODE).strip("._")[:80]
+    if not name:
+        name = "file"
+    return f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:6]}_{name}{ext}"
+
+def _upload_realpath(name: str):
+    """只允许访问 uploads 目录里的普通文件，挡住 ../ 这类路径。"""
+    base = os.path.basename(name or "")
+    if not base or base in (".", ".."):
+        return None
+    root = os.path.realpath(ADMIN_UPLOAD_DIR)
+    path = os.path.realpath(os.path.join(root, base))
+    if os.path.dirname(path) != root:
+        return None
+    return path
+
+def list_admin_uploads():
+    items = []
+    if not os.path.isdir(ADMIN_UPLOAD_DIR):
+        return items
+    for name in os.listdir(ADMIN_UPLOAD_DIR):
+        path = os.path.join(ADMIN_UPLOAD_DIR, name)
+        if not os.path.isfile(path):
+            continue
+        st = os.stat(path)
+        items.append({
+            "name": name,
+            "url": f"/static/uploads/{name}",
+            "size": st.st_size,
+            "mtime": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    items.sort(key=lambda item: item["mtime"], reverse=True)
+    return items
+
+@app.get("/htz-api-pyservice/api/v1/admin/files")
+def admin_files_list():
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": list_admin_uploads()})
+
+@app.post("/htz-api-pyservice/api/v1/admin/files/upload")
+async def admin_files_upload(file: UploadFile = File(...)):
+    """后台上传图片等文件，返回可粘贴到功能帮助里的地址。"""
+    try:
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in ALLOWED_ADMIN_UPLOAD_EXTS:
+            return JSONResponse({"code": "400", "msg": f"不支持的文件类型: {ext or '无后缀'}", "data": None})
+        new_name = _safe_upload_name(file.filename or "file")
+        dst_path = os.path.join(ADMIN_UPLOAD_DIR, new_name)
+        size = 0
+        with open(dst_path, "wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > MAX_ADMIN_UPLOAD_SIZE:
+                    out.close()
+                    os.remove(dst_path)
+                    return JSONResponse({"code": "413", "msg": "文件超过 20MB", "data": None})
+                out.write(chunk)
+        url = f"/static/uploads/{new_name}"
+        print(f"admin_files_upload saved {dst_path} ({size} bytes) -> {url}")
+        return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"name": new_name, "url": url, "size": size}})
+    except Exception as e:
+        print(f"admin_files_upload error: {e}")
+        return JSONResponse({"code": "500", "msg": str(e), "data": None})
+
+@app.post("/htz-api-pyservice/api/v1/admin/files/delete")
+def admin_files_delete(name: str = Body(..., embed=True)):
+    path = _upload_realpath(name)
+    if not path or not os.path.isfile(path):
+        return JSONResponse({"code": "404", "msg": "文件不存在", "data": None})
+    os.remove(path)
+    print(f"admin_files_delete: {os.path.basename(path)}")
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.post("/htz-api-pyservice/api/v1/admin/login")
 def admin_login(username: str = Body(...), password: str = Body(...)):

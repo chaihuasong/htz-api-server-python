@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import threading
 import uuid
@@ -1221,9 +1222,11 @@ def get_app_usage_summary():
             "today_source_stats": today_source_stats
         }
 
-# ===== App 可配置页面（关于黄庭书院） =====
+# ===== App 可配置页面（关于黄庭书院、功能帮助） =====
 
 ABOUT_ACADEMY_PAGE_KEY = "about_academy"
+FEATURE_HELP_PAGE_KEY = "feature_help"
+_DEFAULT_FEATURE_HELP_PATH = os.path.join(os.path.dirname(__file__), "defaults", "feature_help.md")
 
 # 首次建表时写入，和客户端内置介绍一致。已有记录不再覆盖，避免重启把后台改过的内容冲掉。
 DEFAULT_ABOUT_ACADEMY_HTML = """<h1>书院初衷与愿景</h1>
@@ -1242,13 +1245,27 @@ def init_app_page_table():
                 updated_at TEXT NOT NULL DEFAULT ''
             )
         """)
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute("SELECT page_key FROM app_page WHERE page_key=?", (ABOUT_ACADEMY_PAGE_KEY,))
         if cursor.fetchone() is None:
-            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             cursor.execute(
                 "INSERT INTO app_page (page_key, html, updated_at) VALUES (?, ?, ?)",
                 (ABOUT_ACADEMY_PAGE_KEY, DEFAULT_ABOUT_ACADEMY_HTML, now),
             )
+        cursor.execute("SELECT page_key FROM app_page WHERE page_key=?", (FEATURE_HELP_PAGE_KEY,))
+        if cursor.fetchone() is None:
+            cursor.execute(
+                "INSERT INTO app_page (page_key, html, updated_at) VALUES (?, ?, ?)",
+                (FEATURE_HELP_PAGE_KEY, _read_default_feature_help(), now),
+            )
+
+def _read_default_feature_help() -> str:
+    """首次建表时写入。已有记录不再覆盖，避免重启把后台改过的帮助冲掉。"""
+    try:
+        with open(_DEFAULT_FEATURE_HELP_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
 
 def get_app_page(page_key: str):
     with get_cursor() as cursor:
