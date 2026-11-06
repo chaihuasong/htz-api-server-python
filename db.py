@@ -1334,6 +1334,32 @@ def get_app_usage_summary():
         """, (today,))
         today_source_stats = _rows_to_list(cursor.fetchall())
 
+        # 按版本统计（累计），用于后台首页看板
+        cursor.execute("""
+            SELECT COALESCE(NULLIF(version, ''), '未知') as version,
+                   COUNT(DISTINCT device_id) as devices,
+                   COALESCE(SUM(open_count), 0) as opens,
+                   COALESCE(SUM(duration_ms), 0) as duration_ms,
+                   COALESCE(SUM(play_duration_ms), 0) as play_duration_ms
+            FROM app_usage
+            GROUP BY version
+            ORDER BY opens DESC
+        """)
+        version_stats = _rows_to_list(cursor.fetchall())
+
+        # 按网络类型统计（累计），用于后台首页看板
+        cursor.execute("""
+            SELECT COALESCE(NULLIF(network_type, ''), '未知') as network_type,
+                   COUNT(DISTINCT device_id) as devices,
+                   COALESCE(SUM(open_count), 0) as opens,
+                   COALESCE(SUM(duration_ms), 0) as duration_ms,
+                   COALESCE(SUM(play_duration_ms), 0) as play_duration_ms
+            FROM app_usage
+            GROUP BY network_type
+            ORDER BY opens DESC
+        """)
+        network_stats = _rows_to_list(cursor.fetchall())
+
         return {
             "total_devices": total_devices,
             "total_opens": total_opens,
@@ -1346,7 +1372,9 @@ def get_app_usage_summary():
             "today_play_duration_ms": today_play_duration,
             "daily_stats": daily_stats,
             "source_stats": source_stats,
-            "today_source_stats": today_source_stats
+            "today_source_stats": today_source_stats,
+            "version_stats": version_stats,
+            "network_stats": network_stats
         }
 
 # ===== App 可配置页面（关于黄庭书院、功能帮助） =====

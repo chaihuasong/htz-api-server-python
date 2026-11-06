@@ -252,6 +252,26 @@
             .file-url { width: 180px; }
         }
         @media (max-width: 700px) { .stats-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); gap: 9px; } .stat-card { min-height: 88px; padding: 13px 14px; } .stat-card .stat-value { font-size: 20px; } }
+        /* 首页数据看板（环形图） */
+        .donut-grid-inner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+        .donut-card { display: flex; flex-direction: column; background: #fff; border: 1px solid #e8edf3; border-radius: 10px; padding: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
+        .donut-title { font-size: 14px; font-weight: 600; color: #344054; }
+        .donut-subtitle { font-size: 12px; color: #98a2b3; margin-top: 2px; }
+        .donut-body { display: flex; justify-content: center; padding: 8px 0 10px; }
+        .donut-svg { width: 150px; height: 150px; }
+        .donut-seg { transition: filter .15s ease; cursor: default; }
+        .donut-seg:hover { filter: brightness(1.12) saturate(1.2); }
+        .donut-center-value { fill: #101828; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+        .donut-center-label { fill: #98a2b3; font-size: 11px; }
+        .donut-legend { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+        .donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #475467; }
+        .donut-legend-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+        .donut-legend-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .donut-legend-value { color: #344054; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .donut-legend-pct { color: #98a2b3; font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; white-space: nowrap; }
+        .donut-empty { display: flex; align-items: center; justify-content: center; height: 180px; color: #98a2b3; font-size: 13px; }
+        @media (max-width: 1000px) { .donut-grid-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 560px) { .donut-grid-inner { grid-template-columns: 1fr; } .donut-svg { width: 130px; height: 130px; } }
     </style>
 </head>
 <body>
@@ -283,13 +303,13 @@
     </div>
     <div class="container">
         <div class="tabs">
-            <button class="tab" onclick="switchTab('usage')">用量统计</button>
+            <button class="tab active" onclick="switchTab('usage')">用量统计</button>
             <button class="tab" onclick="switchTab('users')">用户信息</button>
             <button class="tab" onclick="switchTab('logs')">日志信息</button>
             <button class="tab" onclick="switchTab('feedback')">意见反馈</button>
             <button class="tab" onclick="switchTab('notification')">系统通知</button>
             <button class="tab" onclick="switchTab('about')">关于书院</button>
-            <button class="tab active" onclick="switchTab('help')">功能帮助</button>
+            <button class="tab" onclick="switchTab('help')">功能帮助</button>
             <button class="tab" onclick="switchTab('files')">文件</button>
             <button class="tab" onclick="switchTab('aksk')">AK/SK 管理</button>
             <button class="tab" onclick="switchTab('phonemodel')">机型映射</button>
@@ -360,7 +380,7 @@
                 </div>
             </div>
             <!-- 功能帮助（原 help.md） -->
-            <div id="help-panel" class="panel active">
+            <div id="help-panel" class="panel">
                 <div class="toolbar">
                     <span id="help-updated" style="color:#667085;font-size:13px"></span>
                     <button class="btn btn-primary refresh-btn" id="help-save" onclick="saveHelpPage()">保存</button>
@@ -499,11 +519,12 @@
                 </table>
             </div>
             <!-- 用量统计面板 -->
-            <div id="usage-panel" class="panel">
+            <div id="usage-panel" class="panel active">
                 <div class="toolbar">
                     <button class="btn btn-success refresh-btn" onclick="loadUsage()">刷新</button>
                 </div>
                 <div class="stats-grid" id="usage-stats-grid"></div>
+                <div id="usage-donuts"></div>
                 <div id="usage-source-section"></div>
                 <div class="chart-container">
                     <div class="chart-title">最近30天趋势</div>
@@ -1839,6 +1860,7 @@ img,video{max-width:100%;height:auto}
             usageData = listJson.data || [];
             renderUsageSummary(summary);
             phoneModelStatsData = phoneModelJson.data || [];
+            renderUsageDonuts(summary);
             renderPhoneModelStats();
             renderUsageChart(summary.daily_stats || []);
             dailyDeviceData = summary.daily_stats || [];
@@ -1892,6 +1914,85 @@ img,video{max-width:100%;height:auto}
                     </tbody>
                 </table></div>
             `;
+        }
+
+        // ===== 首页数据看板（环形图） =====
+        const DONUT_COLORS = ['#1976d2', '#12b76a', '#7a5af8', '#f79009', '#f04438', '#06b6d4', '#ec4899', '#84cc16', '#6366f1', '#f97316'];
+
+        function compactNumber(n) {
+            n = Number(n || 0);
+            if (n >= 100000000) return (n / 100000000).toFixed(1).replace(/\.0$/, '') + '亿';
+            if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '万';
+            return n.toLocaleString();
+        }
+
+        function renderDonutChart(container, title, metric, items, fmt) {
+            const valid = (items || []).filter(i => (i.value || 0) > 0);
+            if (valid.length === 0) {
+                container.innerHTML = `<div class="donut-card"><div class="donut-title">${title}</div><div class="donut-empty">暂无数据</div></div>`;
+                return;
+            }
+            const sorted = valid.slice().sort((a, b) => b.value - a.value);
+            const total = valid.reduce((s, i) => s + i.value, 0);
+            const top = sorted.slice(0, 8);
+            const restVal = sorted.slice(8).reduce((s, i) => s + i.value, 0);
+            const segs = top.map((s, i) => ({ label: s.label, value: s.value, color: DONUT_COLORS[i % DONUT_COLORS.length], pct: (s.value / total) * 100 }));
+            if (restVal > 0) segs.push({ label: '其他', value: restVal, color: '#cbd5e1', pct: (restVal / total) * 100 });
+
+            const GAP = segs.length > 1 ? 1.1 : 0;
+            let offset = 0;
+            const circles = segs.map(s => {
+                const segLen = Math.max(s.pct - GAP, 0.4);
+                const dash = segLen.toFixed(2) + ' ' + (100 - segLen).toFixed(2);
+                const dashOffset = (-offset).toFixed(2);
+                offset += s.pct;
+                return `<circle cx="60" cy="60" r="44" fill="none" stroke="${s.color}" stroke-width="16" pathLength="100" stroke-dasharray="${dash}" stroke-dashoffset="${dashOffset}" class="donut-seg"><title>${escapeHtml(s.label)} · ${fmt(s.value)} · ${s.pct.toFixed(1)}%</title></circle>`;
+            }).join('');
+
+            const legend = segs.map(s => `
+                <div class="donut-legend-row">
+                    <span class="donut-legend-dot" style="background:${s.color}"></span>
+                    <span class="donut-legend-label" title="${escapeHtml(s.label)}">${escapeHtml(s.label)}</span>
+                    <span class="donut-legend-value">${fmt(s.value)}</span>
+                    <span class="donut-legend-pct">${s.pct.toFixed(1)}%</span>
+                </div>`).join('');
+
+            container.innerHTML = `
+                <div class="donut-card">
+                    <div class="donut-title">${title}</div>
+                    <div class="donut-subtitle">按${metric}</div>
+                    <div class="donut-body">
+                        <svg viewBox="0 0 120 120" class="donut-svg" role="img" aria-label="${title}">
+                            <g transform="rotate(-90 60 60)">${circles}</g>
+                            <text x="60" y="56" class="donut-center-value" text-anchor="middle">${compactNumber(total)}</text>
+                            <text x="60" y="73" class="donut-center-label" text-anchor="middle">${metric}</text>
+                        </svg>
+                    </div>
+                    <div class="donut-legend">${legend}</div>
+                </div>`;
+        }
+
+        function renderUsageDonuts(summary) {
+            const grid = document.getElementById('usage-donuts');
+            const fmt = n => Number(n || 0).toLocaleString();
+            const sourceItems = (summary.source_stats || []).map(r => ({ label: r.source || '未知', value: r.opens || 0 }));
+            const modelItems = phoneModelStatsData.map(r => ({ label: r.marketing_model || r.phone_model || '未知', value: r.opens || 0 }));
+            const versionItems = (summary.version_stats || []).map(r => ({ label: r.version || '未知', value: r.devices || 0 }));
+            const networkItems = (summary.network_stats || []).map(r => ({ label: r.network_type || '未知', value: r.devices || 0 }));
+
+            grid.innerHTML = `
+                <div class="section-title">数据看板</div>
+                <div class="donut-grid-inner">
+                    <div id="donut-source"></div>
+                    <div id="donut-model"></div>
+                    <div id="donut-version"></div>
+                    <div id="donut-network"></div>
+                </div>`;
+
+            renderDonutChart(document.getElementById('donut-source'), '来源分布', '打开次数', sourceItems, fmt);
+            renderDonutChart(document.getElementById('donut-model'), '机型分布', '打开次数', modelItems, fmt);
+            renderDonutChart(document.getElementById('donut-version'), '版本分布', '设备数', versionItems, fmt);
+            renderDonutChart(document.getElementById('donut-network'), '网络类型', '设备数', networkItems, fmt);
         }
 
         const phoneModelNumericKeys = ['devices', 'opens', 'per_device_opens', 'duration_ms', 'per_device_duration', 'play_duration_ms', 'per_device_play', 'play_share', 'opens_pct'];
@@ -2595,8 +2696,6 @@ img,video{max-width:100%;height:auto}
             `);
         }
 
-        // 初始化加载
-        loadHelpPage();
     </script>
     </div><!-- /#main-content -->
 
@@ -2637,6 +2736,7 @@ img,video{max-width:100%;height:auto}
             if (sessionStorage.getItem('htz_admin_token')) {
                 overlay.classList.add('hidden');
                 main.style.display = '';
+                switchTab('usage');
             }
 
             // 登录表单提交
@@ -2665,6 +2765,7 @@ img,video{max-width:100%;height:auto}
                         }
                         overlay.classList.add('hidden');
                         main.style.display = '';
+                        switchTab('usage');
                     } else {
                         errorEl.textContent = json.msg || '登录失败';
                     }
