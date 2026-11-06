@@ -12,3 +12,6 @@ static/uploads/
 
 # 后台管理端口令/令牌，不进仓库（见 htz-api-server.py _load_admin_secret）
 admin_secret.json
+
+# Claude Code 本地配置与一次性运维脚本（settings.local.json 里含 admin 口令，不进仓库）
+.claude/
