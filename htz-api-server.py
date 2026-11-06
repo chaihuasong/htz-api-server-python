@@ -9,11 +9,16 @@ import re
 import uuid
 import json
 import time
+import hmac
+import hashlib
+import base64
 import shutil
 import urllib.request
 import urllib.parse
+import urllib.error
 import threading
 from datetime import datetime
+from email.utils import formatdate
 
 from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, UserNote2UpdateItem, PhoneModelMappingItem, UserSyncItem, CompletedItemsReport
 from db import *
@@ -278,6 +283,111 @@ def getaksk(appName: str, authorization: str = Header(default="")):
             return JSONResponse({"code": "401", "msg": "unauthorized", "data": None}, status_code=401)
     result = get_ak_sk(appName)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+# 浏览器不能再直接 PUT 到私有桶（跨域请求会被 OSS 拒绝）。
+# 文件先传到这里，由服务端用 AccessKey 签名后写入 OSS。
+OSS_BUCKET = "htz-storage"
+OSS_HOST = "https://htz-storage.oss-cn-shanghai.aliyuncs.com"
+OSS_SIGN_EXPIRES = 12 * 60 * 60
+OSS_MAX_AVATAR = 5 * 1024 * 1024
+OSS_AVATAR_KEY = re.compile(r"^avatars/[A-Za-z0-9_-]{1,180}\.(jpg|jpeg|png|gif|webp)$")
+
+def _oss_credential():
+    aksk = json.loads(get_ak_sk("htz-oss"))
+    access_key = (aksk.get("accessKey") or "").strip()
+    access_secret = (aksk.get("accessKeySecure") or "").strip()
+    if not access_key or not access_secret:
+        raise RuntimeError("oss credential missing")
+    return access_key, access_secret
+
+def _oss_signature(verb, content_type, date_or_expires, object_key, access_secret):
+    string_to_sign = f"{verb}\n\n{content_type}\n{date_or_expires}\n/{OSS_BUCKET}/{object_key}"
+    digest = hmac.new(access_secret.encode("utf-8"), string_to_sign.encode("utf-8"), hashlib.sha1).digest()
+    return base64.b64encode(digest).decode("utf-8")
+
+def _oss_signed_get_url(object_key, access_key, access_secret):
+    expires = int(time.time()) + OSS_SIGN_EXPIRES
+    signature = _oss_signature("GET", "", str(expires), object_key, access_secret)
+    query = urllib.parse.urlencode({
+        "OSSAccessKeyId": access_key,
+        "Expires": str(expires),
+        "Signature": signature,
+    })
+    return f"{OSS_HOST}/{urllib.parse.quote(object_key, safe='/')}?{query}"
+
+def _oss_object_key(url):
+    if not url or "htz-storage" not in url:
+        return ""
+    path = urllib.parse.urlparse(url).path.lstrip("/")
+    key = urllib.parse.unquote(path)
+    if not OSS_AVATAR_KEY.fullmatch(key):
+        return ""
+    return key
+
+def _oss_image_type(content_type):
+    content_type = (content_type or "").lower()
+    if "png" in content_type:
+        return "image/png"
+    if "gif" in content_type:
+        return "image/gif"
+    if "webp" in content_type:
+        return "image/webp"
+    return "image/jpeg"
+
+@app.post("/htz-api-pyservice/api/v1/oss/avatar")
+async def upload_oss_avatar(file: UploadFile = File(...), objectKey: str = Form(...)):
+    key = (objectKey or "").strip()
+    if not OSS_AVATAR_KEY.fullmatch(key):
+        return JSONResponse({"code": "400", "msg": "invalid object key", "data": None})
+    body = await file.read()
+    if not body:
+        return JSONResponse({"code": "400", "msg": "empty file", "data": None})
+    if len(body) > OSS_MAX_AVATAR:
+        return JSONResponse({"code": "413", "msg": "file too large", "data": None})
+    mime = _oss_image_type(file.content_type)
+    try:
+        access_key, access_secret = _oss_credential()
+        date = formatdate(usegmt=True)
+        signature = _oss_signature("PUT", mime, date, key, access_secret)
+        request = urllib.request.Request(
+            f"{OSS_HOST}/{urllib.parse.quote(key, safe='/')}",
+            data=body,
+            method="PUT",
+            headers={
+                "Authorization": f"OSS {access_key}:{signature}",
+                "Content-Type": mime,
+                "Date": date,
+            },
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            response.read()
+        return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {
+            "stableUrl": f"{OSS_HOST}/{key}",
+            "signedUrl": _oss_signed_get_url(key, access_key, access_secret),
+        }})
+    except urllib.error.HTTPError as error:
+        detail = error.read(240).decode("utf-8", "replace").replace("\n", " ")
+        print(f"oss upload http {error.code}: {detail}")
+        return JSONResponse({"code": "500", "msg": "upload failed", "data": None})
+    except Exception as error:
+        print(f"oss upload error: {error}")
+        return JSONResponse({"code": "500", "msg": "upload failed", "data": None})
+
+@app.get("/htz-api-pyservice/api/v1/oss/sign")
+def sign_oss_url(url: str = ""):
+    key = _oss_object_key(url)
+    if not key:
+        return JSONResponse({"code": "400", "msg": "invalid url", "data": None})
+    try:
+        access_key, access_secret = _oss_credential()
+        return JSONResponse({
+            "code": "0",
+            "msg": "SUCCESS",
+            "data": _oss_signed_get_url(key, access_key, access_secret),
+        })
+    except Exception as error:
+        print(f"oss sign error: {error}")
+        return JSONResponse({"code": "500", "msg": "sign failed", "data": None})
 
 @app.post("/htz-api-pyservice/api/v1/userinfo/add")
 def save_userinfo(request_item: UserInfoItem):

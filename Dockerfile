@@ -1,5 +1,7 @@
-FROM registry.cn-hangzhou.aliyuncs.com/library/python:3.11-slim
 FROM python:3.11-slim
+
+ENV TZ=Asia/Shanghai
+RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime && echo "$TZ" > /etc/timezone
 
 WORKDIR /app
 
