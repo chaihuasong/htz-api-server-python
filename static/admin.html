@@ -204,6 +204,7 @@
         .daily-device-table tbody tr:last-child td { border-bottom: 0; }
         .daily-device-table .daily-date { color: #475467; font-variant-numeric: tabular-nums; }
         .daily-device-table .daily-metric { text-align: right; font-variant-numeric: tabular-nums; }
+        .daily-device-table .daily-device-center { text-align: center; font-variant-numeric: tabular-nums; }
         .daily-device-table .daily-device-count { color: #1769aa; font-weight: 600; }
         .daily-device-sort { cursor: pointer; user-select: none; }
         .daily-device-sort:hover { color: #1976d2; }
@@ -2091,16 +2092,16 @@ img,video{max-width:100%;height:auto}
                 <div class="daily-device-table-wrap"><table class="daily-device-table">
                     <thead><tr>
                         <th class="daily-device-sort" onclick="sortDailyDevices('date')">日期<span class="daily-device-sort-indicator" id="daily-device-sort-date"></span></th>
-                        <th class="daily-device-sort" onclick="sortDailyDevices('devices')">设备数<span class="daily-device-sort-indicator" id="daily-device-sort-devices"></span></th>
-                        <th class="daily-device-sort" onclick="sortDailyDevices('opens')">打开次数<span class="daily-device-sort-indicator" id="daily-device-sort-opens"></span></th>
+                        <th class="daily-device-sort daily-device-center" onclick="sortDailyDevices('devices')">设备数<span class="daily-device-sort-indicator" id="daily-device-sort-devices"></span></th>
+                        <th class="daily-device-sort daily-device-center" onclick="sortDailyDevices('opens')">打开次数<span class="daily-device-sort-indicator" id="daily-device-sort-opens"></span></th>
                         <th class="daily-device-sort" onclick="sortDailyDevices('duration')">前台使用<span class="daily-device-sort-indicator" id="daily-device-sort-duration"></span></th>
                         <th class="daily-device-sort" onclick="sortDailyDevices('play_duration')">播放时长<span class="daily-device-sort-indicator" id="daily-device-sort-play_duration"></span></th>
                     </tr></thead>
                     <tbody>
                         ${rows.map(d => `<tr>
                             <td class="daily-date">${escapeHtml(d.date)}</td>
-                            <td class="daily-metric daily-device-count">${d.devices > 0 ? `<a class="link-cell" onclick="showDailyDevices('${jsArg(d.date)}')" title="查看当日设备与使用人员">${d.devices}</a>` : '0'}</td>
-                            <td class="daily-metric">${d.opens || 0}</td>
+                            <td class="daily-device-count daily-device-center">${d.devices > 0 ? `<a class="link-cell" onclick="showDailyDevices('${jsArg(d.date)}')" title="查看当日设备与使用人员">${d.devices}</a>` : '0'}</td>
+                            <td class="daily-device-center">${d.opens || 0}</td>
                             <td class="daily-metric">${formatDuration(d.duration || 0)}</td>
                             <td class="daily-metric">${formatDuration(d.play_duration || 0)}</td>
                         </tr>`).join('')}
