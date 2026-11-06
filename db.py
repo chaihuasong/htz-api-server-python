@@ -554,9 +554,15 @@ def init_notification_table():
                 msg TEXT NOT NULL,
                 status TEXT DEFAULT 'published',
                 created_at TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                view_count INTEGER DEFAULT 0
             )
         """)
+        # 兼容旧表，补充访问量列
+        try:
+            cursor.execute("ALTER TABLE system_notification ADD COLUMN view_count INTEGER DEFAULT 0")
+        except Exception:
+            pass  # 列已存在则忽略
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_notification_read (
                 user_id TEXT NOT NULL,
@@ -586,9 +592,12 @@ def save_notification(item: NotificationItem):
 def get_all_notifications():
     with get_cursor() as cursor:
         cursor.execute("""
-            SELECT id, title, msg, status, created_at, updated_at
-            FROM system_notification
-            ORDER BY CAST(created_at AS INTEGER) DESC
+            SELECT n.id, n.title, n.msg, n.status, n.created_at, n.updated_at,
+                   COALESCE(n.view_count, 0) AS view_count,
+                   (SELECT COUNT(*) FROM user_notification_read r
+                    WHERE r.notification_id = n.id) AS read_count
+            FROM system_notification n
+            ORDER BY CAST(n.created_at AS INTEGER) DESC
             LIMIT 1000
         """)
         return _rows_to_list(cursor.fetchall())
@@ -632,6 +641,11 @@ def mark_user_notifications_read(user_id: str, notification_ids: list):
             VALUES (?, ?, ?)
             ON CONFLICT(user_id, notification_id) DO UPDATE SET read_at=excluded.read_at
         """, [(user_id, notification_id, now) for notification_id in unique_ids])
+        # 访问量 +1：每读一次（包括重复阅读）都累计
+        cursor.executemany("""
+            UPDATE system_notification SET view_count = COALESCE(view_count, 0) + 1
+            WHERE id = ?
+        """, [(notification_id,) for notification_id in unique_ids])
     return len(unique_ids)
 
 
