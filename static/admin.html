@@ -220,6 +220,9 @@
         .phone-model-table .model-rank { color: #98a2b3; }
         .phone-model-table .model-avg { color: #475467; }
         .phone-model-table .model-name { font-weight: 600; }
+        .phone-model-sort { cursor: pointer; user-select: none; }
+        .phone-model-sort:hover { color: #1976d2; }
+        .phone-model-sort-indicator { margin-left: 4px; color: #1976d2; }
         @media (max-width: 700px) { .phone-model-summary { grid-template-columns: repeat(2, minmax(120px, 1fr)); } }
         .source-stats-wrap { overflow-x: auto; border: 1px solid #e8edf3; border-radius: 10px; background: #fff; }
         .source-stats-table { width: max-content; min-width: 100%; margin: 0; border-collapse: separate; border-spacing: 0; font-size: 13px; color: #344054; }
@@ -741,6 +744,8 @@
         let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [], phonemodelData = [];
         let usageSort = { key: 'date', direction: 'desc' };
         let userSort = { key: 'id', direction: 'desc' };
+        let phoneModelStatsData = [];
+        let phoneModelSort = { key: 'opens', direction: 'desc' };
         // 连着点好几个昵称时，只认最后一次点击的结果
         let userDetailSeq = 0;
 
@@ -1828,7 +1833,8 @@ img,video{max-width:100%;height:auto}
             const summary = summaryJson.data || {};
             usageData = listJson.data || [];
             renderUsageSummary(summary);
-            renderPhoneModelStats(phoneModelJson.data || []);
+            phoneModelStatsData = phoneModelJson.data || [];
+            renderPhoneModelStats();
             renderUsageChart(summary.daily_stats || []);
             renderDailyDeviceStats(summary.daily_stats || []);
             filterUsage();
@@ -1882,12 +1888,48 @@ img,video{max-width:100%;height:auto}
             `;
         }
 
-        function renderPhoneModelStats(data) {
+        const phoneModelNumericKeys = ['devices', 'opens', 'per_device_opens', 'duration_ms', 'per_device_duration', 'play_duration_ms', 'per_device_play', 'play_share', 'opens_pct'];
+
+        function getPhoneModelSortValue(r, key) {
+            switch (key) {
+                case 'marketing_model': return r.marketing_model || '';
+                case 'phone_model': return r.phone_model || '';
+                case 'devices': return r.devices || 0;
+                case 'opens': return r.opens || 0;
+                case 'per_device_opens': return r.devices ? (r.opens || 0) / r.devices : 0;
+                case 'duration_ms': return r.duration_ms || 0;
+                case 'per_device_duration': return r.devices ? (r.duration_ms || 0) / r.devices : 0;
+                case 'play_duration_ms': return r.play_duration_ms || 0;
+                case 'per_device_play': return r.devices ? (r.play_duration_ms || 0) / r.devices : 0;
+                case 'play_share': return r.duration_ms ? (r.play_duration_ms || 0) / r.duration_ms : 0;
+                case 'opens_pct': return r.opens || 0;
+                default: return r[key] ?? '';
+            }
+        }
+
+        function sortPhoneModelStats(key) {
+            phoneModelSort = { key, direction: phoneModelSort.key === key && phoneModelSort.direction === 'asc' ? 'desc' : 'asc' };
+            renderPhoneModelStats();
+        }
+
+        function renderPhoneModelStats() {
             const section = document.getElementById('usage-phone-model-section');
+            const data = phoneModelStatsData;
             if (!data || data.length === 0) {
                 section.innerHTML = '';
                 return;
             }
+            const sorted = data.slice().sort((a, b) => {
+                const av = getPhoneModelSortValue(a, phoneModelSort.key);
+                const bv = getPhoneModelSortValue(b, phoneModelSort.key);
+                const order = phoneModelNumericKeys.includes(phoneModelSort.key)
+                    ? Number(av) - Number(bv)
+                    : String(av).localeCompare(String(bv), 'zh-CN', { numeric: true, sensitivity: 'base' });
+                return order * (phoneModelSort.direction === 'asc' ? 1 : -1);
+            });
+            document.querySelectorAll('.phone-model-sort-indicator').forEach(el => el.textContent = '');
+            const indicator = document.getElementById(`phone-model-sort-${phoneModelSort.key}`);
+            if (indicator) indicator.textContent = phoneModelSort.direction === 'asc' ? '↑' : '↓';
             const totalOpens = data.reduce((sum, d) => sum + (d.opens || 0), 0);
             const totalOpensDenominator = totalOpens || 1;
             const maxOpens = Math.max(...data.map(d => d.opens || 0), 1);
@@ -1904,20 +1946,20 @@ img,video{max-width:100%;height:auto}
                 <div class="phone-model-table-wrap"><table class="phone-model-table">
                     <thead><tr>
                         <th>#</th>
-                        <th>营销型号</th>
-                        <th>工程型号</th>
-                        <th>设备数</th>
-                        <th>打开次数</th>
-                        <th>每设备打开</th>
-                        <th>前台使用</th>
-                        <th>每设备前台</th>
-                        <th>播放时长</th>
-                        <th>每设备播放</th>
-                        <th>播放/前台</th>
-                        <th>打开占比</th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('marketing_model')">营销型号<span class="phone-model-sort-indicator" id="phone-model-sort-marketing_model"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('phone_model')">工程型号<span class="phone-model-sort-indicator" id="phone-model-sort-phone_model"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('devices')">设备数<span class="phone-model-sort-indicator" id="phone-model-sort-devices"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('opens')">打开次数<span class="phone-model-sort-indicator" id="phone-model-sort-opens"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('per_device_opens')">每设备打开<span class="phone-model-sort-indicator" id="phone-model-sort-per_device_opens"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('duration_ms')">前台使用<span class="phone-model-sort-indicator" id="phone-model-sort-duration_ms"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('per_device_duration')">每设备前台<span class="phone-model-sort-indicator" id="phone-model-sort-per_device_duration"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('play_duration_ms')">播放时长<span class="phone-model-sort-indicator" id="phone-model-sort-play_duration_ms"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('per_device_play')">每设备播放<span class="phone-model-sort-indicator" id="phone-model-sort-per_device_play"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('play_share')">播放/前台<span class="phone-model-sort-indicator" id="phone-model-sort-play_share"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('opens_pct')">打开占比<span class="phone-model-sort-indicator" id="phone-model-sort-opens_pct"></span></th>
                     </tr></thead>
                     <tbody>
-                        ${data.map((r, i) => {
+                        ${sorted.map((r, i) => {
                             const pct = ((r.opens || 0) / totalOpensDenominator * 100).toFixed(1);
                             const devices = r.devices || 0;
                             const perDeviceOpens = devices ? ((r.opens || 0) / devices).toFixed(1) : '0.0';
