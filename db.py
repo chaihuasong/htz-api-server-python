@@ -1213,6 +1213,60 @@ def get_phone_model_devices(phone_model: str, engineering_model: str = ""):
     devices = enrich_list_with_marketing_model(devices, "phone_model")
     return {"summary": summary, "devices": devices, "users": users}
 
+
+def get_daily_devices(date: str):
+    """每日设备数里点「设备数」要看的：某一天活跃的设备与使用人员。
+
+    结构对齐 get_phone_model_devices，只是分组维度从机型换成日期。
+    设备机型仍取该设备最近一次上报的非空值，避免当天上报为空时显示成空。
+    """
+    if not date:
+        return None
+    with get_cursor() as cursor:
+        cursor.execute(f"""
+            SELECT COUNT(DISTINCT a.device_id) AS devices,
+                   COUNT(DISTINCT CASE WHEN a.user_id != '' THEN a.user_id END) AS users,
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a WHERE a.date = ?
+        """, (date,))
+        summary = _row_to_dict(cursor.fetchone())
+        if not summary.get("days"):
+            return None
+        summary["date"] = date
+
+        cursor.execute(f"""
+            SELECT a.device_id,
+                   {_latest_by_device("phone_model")},
+                   {_latest_by_device("engineering_model")},
+                   {_latest_by_device("os_version")},
+                   {_latest_by_device("network_type")},
+                   {_latest_by_device("source")},
+                   {_latest_by_device("version")},
+                   COUNT(DISTINCT CASE WHEN a.user_id != '' THEN a.user_id END) AS users,
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a WHERE a.date = ?
+            GROUP BY a.device_id
+            ORDER BY last_date DESC, opens DESC
+        """, (date,))
+        devices = _rows_to_list(cursor.fetchall())
+
+        cursor.execute(f"""
+            SELECT a.user_id,
+                   COALESCE(NULLIF(u.nickname, ''), '') AS nickname,
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a
+            LEFT JOIN user_info u ON a.user_id = u.unionid
+            WHERE a.date = ?
+            GROUP BY a.user_id
+            -- 未登录那段固定排在最后，前面的行数才对得上「使用人员」个数
+            ORDER BY (a.user_id = '') ASC, last_date DESC, opens DESC
+        """, (date,))
+        users = _rows_to_list(cursor.fetchall())
+
+    devices = enrich_list_with_marketing_model(devices, "phone_model")
+    return {"summary": summary, "devices": devices, "users": users}
+
+
 def get_app_usage_summary():
     with get_cursor() as cursor:
         # 总设备数

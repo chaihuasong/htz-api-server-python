@@ -205,6 +205,9 @@
         .daily-device-table .daily-date { color: #475467; font-variant-numeric: tabular-nums; }
         .daily-device-table .daily-metric { text-align: right; font-variant-numeric: tabular-nums; }
         .daily-device-table .daily-device-count { color: #1769aa; font-weight: 600; }
+        .daily-device-sort { cursor: pointer; user-select: none; }
+        .daily-device-sort:hover { color: #1976d2; }
+        .daily-device-sort-indicator { margin-left: 4px; color: #1976d2; }
         .phone-model-summary { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 10px; margin: 10px 0 12px; }
         .phone-model-kpi { padding: 10px 14px; border: 1px solid #e8edf3; border-radius: 8px; background: #fbfcfe; }
         .phone-model-kpi strong { display: block; color: #344054; font-size: 18px; line-height: 1.35; font-variant-numeric: tabular-nums; }
@@ -746,6 +749,8 @@
         let userSort = { key: 'id', direction: 'desc' };
         let phoneModelStatsData = [];
         let phoneModelSort = { key: 'opens', direction: 'desc' };
+        let dailyDeviceData = [];
+        let dailyDeviceSort = { key: 'date', direction: 'desc' };
         // 连着点好几个昵称时，只认最后一次点击的结果
         let userDetailSeq = 0;
 
@@ -1836,7 +1841,8 @@ img,video{max-width:100%;height:auto}
             phoneModelStatsData = phoneModelJson.data || [];
             renderPhoneModelStats();
             renderUsageChart(summary.daily_stats || []);
-            renderDailyDeviceStats(summary.daily_stats || []);
+            dailyDeviceData = summary.daily_stats || [];
+            renderDailyDeviceStats();
             filterUsage();
         }
 
@@ -2050,27 +2056,50 @@ img,video{max-width:100%;height:auto}
             }).join('');
         }
 
-        function renderDailyDeviceStats(dailyStats) {
+        const dailyDeviceNumericKeys = ['devices', 'opens', 'duration', 'play_duration'];
+
+        function getDailyDeviceSortValue(d, key) {
+            if (key === 'date') return d.date || '';
+            return d[key] || 0;
+        }
+
+        function sortDailyDevices(key) {
+            dailyDeviceSort = { key, direction: dailyDeviceSort.key === key && dailyDeviceSort.direction === 'asc' ? 'desc' : 'asc' };
+            renderDailyDeviceStats();
+        }
+
+        function renderDailyDeviceStats() {
             const section = document.getElementById('usage-daily-devices');
-            if (!dailyStats || dailyStats.length === 0) {
+            const data = dailyDeviceData;
+            if (!data || data.length === 0) {
                 section.innerHTML = '';
                 return;
             }
-            const rows = dailyStats.slice().reverse();
+            const rows = data.slice().sort((a, b) => {
+                const av = getDailyDeviceSortValue(a, dailyDeviceSort.key);
+                const bv = getDailyDeviceSortValue(b, dailyDeviceSort.key);
+                const order = dailyDeviceNumericKeys.includes(dailyDeviceSort.key)
+                    ? Number(av) - Number(bv)
+                    : String(av).localeCompare(String(bv), 'zh-CN', { numeric: true, sensitivity: 'base' });
+                return order * (dailyDeviceSort.direction === 'asc' ? 1 : -1);
+            });
+            document.querySelectorAll('.daily-device-sort-indicator').forEach(el => el.textContent = '');
+            const indicator = document.getElementById(`daily-device-sort-${dailyDeviceSort.key}`);
+            if (indicator) indicator.textContent = dailyDeviceSort.direction === 'asc' ? '↑' : '↓';
             section.innerHTML = `
                 <div class="section-title">每日设备数（最近30天）</div>
                 <div class="daily-device-table-wrap"><table class="daily-device-table">
                     <thead><tr>
-                        <th>日期</th>
-                        <th>设备数</th>
-                        <th>打开次数</th>
-                        <th>前台使用</th>
-                        <th>播放时长</th>
+                        <th class="daily-device-sort" onclick="sortDailyDevices('date')">日期<span class="daily-device-sort-indicator" id="daily-device-sort-date"></span></th>
+                        <th class="daily-device-sort" onclick="sortDailyDevices('devices')">设备数<span class="daily-device-sort-indicator" id="daily-device-sort-devices"></span></th>
+                        <th class="daily-device-sort" onclick="sortDailyDevices('opens')">打开次数<span class="daily-device-sort-indicator" id="daily-device-sort-opens"></span></th>
+                        <th class="daily-device-sort" onclick="sortDailyDevices('duration')">前台使用<span class="daily-device-sort-indicator" id="daily-device-sort-duration"></span></th>
+                        <th class="daily-device-sort" onclick="sortDailyDevices('play_duration')">播放时长<span class="daily-device-sort-indicator" id="daily-device-sort-play_duration"></span></th>
                     </tr></thead>
                     <tbody>
                         ${rows.map(d => `<tr>
                             <td class="daily-date">${escapeHtml(d.date)}</td>
-                            <td class="daily-metric daily-device-count">${d.devices || 0}</td>
+                            <td class="daily-metric daily-device-count">${d.devices > 0 ? `<a class="link-cell" onclick="showDailyDevices('${jsArg(d.date)}')" title="查看当日设备与使用人员">${d.devices}</a>` : '0'}</td>
                             <td class="daily-metric">${d.opens || 0}</td>
                             <td class="daily-metric">${formatDuration(d.duration || 0)}</td>
                             <td class="daily-metric">${formatDuration(d.play_duration || 0)}</td>
@@ -2466,6 +2495,97 @@ img,video{max-width:100%;height:auto}
                 </table>`;
 
             openUsageDetailModal('机型设备与使用人员', `
+                ${infoHtml}
+                ${statsHtml}
+                <div class="section-title">相关设备（${devices.length}）</div>
+                ${devicesHtml}
+                <div class="section-title">使用人员（${users.filter(u => u.user_id).length}）<span style="font-size:12px;color:#999;font-weight:400">　未登录时段单独列在末行</span></div>
+                ${usersHtml}
+            `);
+        }
+
+        async function showDailyDevices(date) {
+            if (!date) return;
+            const seq = ++usageDetailSeq;
+            openUsageDetailModal('当日设备与使用人员', '<div class="empty">加载中…</div>');
+            let json;
+            try {
+                const res = await fetch(`${API_BASE}/usage/daily-devices?date=${encodeURIComponent(date)}`);
+                json = await res.json();
+            } catch (e) {
+                if (seq === usageDetailSeq) openUsageDetailModal('当日设备与使用人员', '<div class="empty">加载失败，请重试</div>');
+                return;
+            }
+            if (seq !== usageDetailSeq) return;
+            const detail = json.data;
+            if (!detail) {
+                openUsageDetailModal('当日设备与使用人员', '<div class="empty">没有查到该日期的记录</div>');
+                return;
+            }
+            const s = detail.summary || {};
+            const infoHtml = `
+                <div class="detail-profile">
+                    <div>
+                        <div class="name">${escapeHtml(s.date || date)}</div>
+                        <div class="meta">当日活跃设备与使用人员</div>
+                    </div>
+                </div>`;
+
+            const statsHtml = renderMiniStats([
+                [s.opens || 0, '打开次数'],
+                [formatDuration(s.duration_ms || 0), '前台使用'],
+                [formatDuration(s.play_duration_ms || 0), '播放时长'],
+                [s.devices || 0, '设备数'],
+                [s.users || 0, '使用人数'],
+                [s.days || 0, '活跃天数']
+            ]);
+
+            const devices = detail.devices || [];
+            const devicesHtml = devices.length === 0 ? '<div class="empty">暂无设备记录</div>' : `
+                <table>
+                    <thead><tr>
+                        <th>设备ID</th><th>手机型号</th><th>系统版本</th><th>来源</th><th>版本</th>
+                        <th>打开次数</th><th>前台使用</th><th>播放时长</th><th>账号数</th><th>天数</th><th>最近活跃</th>
+                    </tr></thead>
+                    <tbody>
+                        ${devices.map(r => `<tr>
+                            <td><span class="text-truncate link-cell" title="${escapeHtml(r.device_id)}" onclick="showUsageDeviceDetail('${jsArg(r.device_id)}')">${escapeHtml(r.device_id)}</span></td>
+                            <td>${renderModelCell(r)}</td>
+                            <td>${escapeHtml(r.os_version) || '-'}</td>
+                            <td>${escapeHtml(r.source) || '-'}</td>
+                            <td>${r.version ? `<span class="badge badge-info">${escapeHtml(r.version)}</span>` : '-'}</td>
+                            <td>${r.opens || 0}</td>
+                            <td>${formatDuration(r.duration_ms || 0)}</td>
+                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
+                            <td>${r.users || 0}</td>
+                            <td>${r.days || 0}</td>
+                            <td>${escapeHtml(r.last_date) || '-'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+
+            const users = detail.users || [];
+            const usersHtml = users.length === 0 ? '<div class="empty">暂无使用人员记录</div>' : `
+                <table>
+                    <thead><tr>
+                        <th>用户</th><th>unionid</th><th>打开次数</th><th>前台使用</th><th>播放时长</th><th>天数</th><th>最近活跃</th>
+                    </tr></thead>
+                    <tbody>
+                        ${users.map(r => `<tr>
+                            <td>${r.user_id
+                                ? `<span class="link-cell" onclick="showUsageUserDetail('${jsArg(r.user_id)}')">${escapeHtml(usageNickname(r.nickname))}</span>`
+                                : '<span style="color:#999">未登录</span>'}</td>
+                            <td><span class="text-truncate" title="${escapeHtml(r.user_id)}">${escapeHtml(r.user_id) || '-'}</span></td>
+                            <td>${r.opens || 0}</td>
+                            <td>${formatDuration(r.duration_ms || 0)}</td>
+                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
+                            <td>${r.days || 0}</td>
+                            <td>${escapeHtml(r.last_date) || '-'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+
+            openUsageDetailModal('当日设备与使用人员', `
                 ${infoHtml}
                 ${statsHtml}
                 <div class="section-title">相关设备（${devices.length}）</div>
