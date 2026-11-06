@@ -197,13 +197,12 @@
         .users-sort-indicator { margin-left: 4px; color: #1976d2; }
         .daily-device-table-wrap { max-height: 340px; overflow: auto; border: 1px solid #e8edf3; border-radius: 10px; background: #fff; }
         .daily-device-table { width: 100%; min-width: 520px; margin: 0; border-collapse: separate; border-spacing: 0; font-size: 13px; color: #344054; }
-        .daily-device-table th { position: sticky; top: 0; z-index: 1; padding: 11px 16px; background: #f4f7fb; color: #667085; font-size: 12px; font-weight: 600; white-space: nowrap; border-bottom: 1px solid #e3e9f0; }
-        .daily-device-table td { padding: 10px 16px; background: #fff; border-bottom: 1px solid #edf0f4; white-space: nowrap; }
+        .daily-device-table th { position: sticky; top: 0; z-index: 1; padding: 11px 16px; background: #f4f7fb; color: #667085; font-size: 12px; font-weight: 600; white-space: nowrap; border-bottom: 1px solid #e3e9f0; text-align: center; }
+        .daily-device-table td { padding: 10px 16px; background: #fff; border-bottom: 1px solid #edf0f4; white-space: nowrap; text-align: center; }
         .daily-device-table tbody tr:nth-child(even) td { background: #fbfcfe; }
         .daily-device-table tbody tr:hover td { background: #f1f7ff; }
         .daily-device-table tbody tr:last-child td { border-bottom: 0; }
         .daily-device-table .daily-date { color: #475467; font-variant-numeric: tabular-nums; }
-        .daily-device-table .daily-metric { text-align: right; font-variant-numeric: tabular-nums; }
         .daily-device-table .daily-device-center { text-align: center; font-variant-numeric: tabular-nums; }
         .daily-device-table .daily-device-count { color: #1769aa; font-weight: 600; }
         .daily-device-sort { cursor: pointer; user-select: none; }
@@ -2102,8 +2101,8 @@ img,video{max-width:100%;height:auto}
                             <td class="daily-date">${escapeHtml(d.date)}</td>
                             <td class="daily-device-count daily-device-center">${d.devices > 0 ? `<a class="link-cell" onclick="showDailyDevices('${jsArg(d.date)}')" title="查看当日设备与使用人员">${d.devices}</a>` : '0'}</td>
                             <td class="daily-device-center">${d.opens || 0}</td>
-                            <td class="daily-metric">${formatDuration(d.duration || 0)}</td>
-                            <td class="daily-metric">${formatDuration(d.play_duration || 0)}</td>
+                            <td class="daily-device-center">${formatDuration(d.duration || 0)}</td>
+                            <td class="daily-device-center">${formatDuration(d.play_duration || 0)}</td>
                         </tr>`).join('')}
                     </tbody>
                 </table></div>
