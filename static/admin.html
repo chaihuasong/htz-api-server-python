@@ -1930,7 +1930,7 @@ img,video{max-width:100%;height:auto}
                                 <td class="model-rank">${i + 1}</td>
                                 <td>${r.marketing_model ? `<span class="badge" style="background:#e8f5e9;color:#388e3c">${escapeHtml(r.marketing_model)}</span>` : '<span style="color:#999">未映射</span>'}</td>
                                 <td><span class="text-truncate model-name" title="${escapeHtml(r.phone_model || '')}">${escapeHtml(r.phone_model || '-')}</span>${r.engineering_model ? '<br><span style="font-size:11px;color:#999">' + escapeHtml(r.engineering_model) + '</span>' : ''}</td>
-                                <td class="model-number">${devices}</td>
+                                <td class="model-number">${devices > 0 ? `<a class="link-cell" onclick="showPhoneModelDevices('${jsArg(r.phone_model)}','${jsArg(r.engineering_model || '')}')" title="查看设备与使用人员">${devices}</a>` : '0'}</td>
                                 <td>
                                     <div style="display:flex;align-items:center;gap:8px">
                                         <div style="flex:1;background:#e0e0e0;border-radius:3px;height:6px;min-width:48px">
@@ -2336,6 +2336,100 @@ img,video{max-width:100%;height:auto}
                 ${usersHtml}
                 <div class="section-title">按天明细（${(detail.daily || []).length}）</div>
                 ${renderUsageDailyTable(detail.daily, false)}
+            `);
+        }
+
+        async function showPhoneModelDevices(phoneModel, engineeringModel) {
+            if (phoneModel == null) return;
+            const seq = ++usageDetailSeq;
+            openUsageDetailModal('机型设备与使用人员', '<div class="empty">加载中…</div>');
+            let json;
+            try {
+                const res = await fetch(`${API_BASE}/usage/phone-model-devices?phone_model=${encodeURIComponent(phoneModel)}&engineering_model=${encodeURIComponent(engineeringModel || '')}`);
+                json = await res.json();
+            } catch (e) {
+                if (seq === usageDetailSeq) openUsageDetailModal('机型设备与使用人员', '<div class="empty">加载失败，请重试</div>');
+                return;
+            }
+            if (seq !== usageDetailSeq) return;
+            const detail = json.data;
+            if (!detail) {
+                openUsageDetailModal('机型设备与使用人员', '<div class="empty">没有查到该机型的记录</div>');
+                return;
+            }
+            const s = detail.summary || {};
+            const infoHtml = `
+                <div class="detail-profile">
+                    <div>
+                        <div class="name">${escapeHtml(s.marketing_model || s.phone_model || '未知机型')}</div>
+                        <div class="meta">
+                            上报型号：${escapeHtml(s.phone_model) || '-'} ｜ 工程型号：${escapeHtml(s.engineering_model) || '-'}
+                        </div>
+                    </div>
+                </div>`;
+
+            const statsHtml = renderMiniStats([
+                [s.opens || 0, '打开次数'],
+                [formatDuration(s.duration_ms || 0), '前台使用'],
+                [formatDuration(s.play_duration_ms || 0), '播放时长'],
+                [s.devices || 0, '设备数'],
+                [s.users || 0, '使用人数'],
+                [s.days || 0, '活跃天数'],
+                [renderUsageRange(s), '活跃区间', true]
+            ]);
+
+            const devices = detail.devices || [];
+            const devicesHtml = devices.length === 0 ? '<div class="empty">暂无设备记录</div>' : `
+                <table>
+                    <thead><tr>
+                        <th>设备ID</th><th>手机型号</th><th>系统版本</th><th>来源</th><th>版本</th>
+                        <th>打开次数</th><th>前台使用</th><th>播放时长</th><th>账号数</th><th>天数</th><th>最近活跃</th>
+                    </tr></thead>
+                    <tbody>
+                        ${devices.map(r => `<tr>
+                            <td><span class="text-truncate link-cell" title="${escapeHtml(r.device_id)}" onclick="showUsageDeviceDetail('${jsArg(r.device_id)}')">${escapeHtml(r.device_id)}</span></td>
+                            <td>${renderModelCell(r)}</td>
+                            <td>${escapeHtml(r.os_version) || '-'}</td>
+                            <td>${escapeHtml(r.source) || '-'}</td>
+                            <td>${r.version ? `<span class="badge badge-info">${escapeHtml(r.version)}</span>` : '-'}</td>
+                            <td>${r.opens || 0}</td>
+                            <td>${formatDuration(r.duration_ms || 0)}</td>
+                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
+                            <td>${r.users || 0}</td>
+                            <td>${r.days || 0}</td>
+                            <td>${escapeHtml(r.last_date) || '-'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+
+            const users = detail.users || [];
+            const usersHtml = users.length === 0 ? '<div class="empty">暂无使用人员记录</div>' : `
+                <table>
+                    <thead><tr>
+                        <th>用户</th><th>unionid</th><th>打开次数</th><th>前台使用</th><th>播放时长</th><th>天数</th><th>最近活跃</th>
+                    </tr></thead>
+                    <tbody>
+                        ${users.map(r => `<tr>
+                            <td>${r.user_id
+                                ? `<span class="link-cell" onclick="showUsageUserDetail('${jsArg(r.user_id)}')">${escapeHtml(usageNickname(r.nickname))}</span>`
+                                : '<span style="color:#999">未登录</span>'}</td>
+                            <td><span class="text-truncate" title="${escapeHtml(r.user_id)}">${escapeHtml(r.user_id) || '-'}</span></td>
+                            <td>${r.opens || 0}</td>
+                            <td>${formatDuration(r.duration_ms || 0)}</td>
+                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
+                            <td>${r.days || 0}</td>
+                            <td>${escapeHtml(r.last_date) || '-'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+
+            openUsageDetailModal('机型设备与使用人员', `
+                ${infoHtml}
+                ${statsHtml}
+                <div class="section-title">相关设备（${devices.length}）</div>
+                ${devicesHtml}
+                <div class="section-title">使用人员（${users.filter(u => u.user_id).length}）<span style="font-size:12px;color:#999;font-weight:400">　未登录时段单独列在末行</span></div>
+                ${usersHtml}
             `);
         }
 

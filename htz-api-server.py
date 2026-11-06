@@ -118,6 +118,7 @@ ADMIN_ENDPOINTS = {
     ("GET", "/htz-api-pyservice/api/v1/usage/list"),
     ("GET", "/htz-api-pyservice/api/v1/usage/summary"),
     ("GET", "/htz-api-pyservice/api/v1/usage/phone-model-stats"),
+    ("GET", "/htz-api-pyservice/api/v1/usage/phone-model-devices"),
     ("GET", "/htz-api-pyservice/api/v1/usage/user-detail"),
     ("GET", "/htz-api-pyservice/api/v1/usage/device-detail"),
     ("GET", "/htz-api-pyservice/api/v1/feedback/list"),
@@ -553,6 +554,14 @@ def usage_summary():
 @app.get("/htz-api-pyservice/api/v1/usage/phone-model-stats")
 def usage_phone_model_stats():
     result = get_phone_model_stats()
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.get("/htz-api-pyservice/api/v1/usage/phone-model-devices")
+def usage_phone_model_devices(phone_model: str, engineering_model: str = ""):
+    """营销型号分布里点「设备数」弹出的详情：该机型组合下的设备与使用人员"""
+    result = get_phone_model_devices(phone_model, engineering_model)
+    if result is None:
+        return JSONResponse({"code": "404", "msg": "phone model usage not found", "data": None})
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 @app.get("/htz-api-pyservice/api/v1/usage/user-detail")

@@ -1154,6 +1154,65 @@ def enrich_list_with_marketing_model(items: list, phone_model_key: str = "phone_
         item["marketing_model"] = marketing or ""
     return items
 
+def get_phone_model_devices(phone_model: str, engineering_model: str = ""):
+    """营销型号分布里点「设备数」要看的：这一组机型下的设备与使用人员。
+
+    get_phone_model_stats 里空上报型号显示成「未知」，这里用同样的 COALESCE/NULLIF
+    表达式去匹配，保证和列表页的分组一一对应。
+    """
+    if phone_model is None:
+        phone_model = ""
+    if engineering_model is None:
+        engineering_model = ""
+    where = """WHERE COALESCE(NULLIF(a.phone_model, ''), '未知') = ?
+                 AND COALESCE(NULLIF(a.engineering_model, ''), '') = ?"""
+    params = (phone_model, engineering_model)
+    with get_cursor() as cursor:
+        cursor.execute(f"""
+            SELECT COUNT(DISTINCT a.device_id) AS devices,
+                   COUNT(DISTINCT CASE WHEN a.user_id != '' THEN a.user_id END) AS users,
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a {where}
+        """, params)
+        summary = _row_to_dict(cursor.fetchone())
+        if not summary.get("days"):
+            return None
+        summary["phone_model"] = phone_model
+        summary["engineering_model"] = engineering_model
+        summary = enrich_list_with_marketing_model([summary], "phone_model")[0]
+
+        cursor.execute(f"""
+            SELECT a.device_id,
+                   {_latest_by_device("phone_model")},
+                   {_latest_by_device("engineering_model")},
+                   {_latest_by_device("os_version")},
+                   {_latest_by_device("network_type")},
+                   {_latest_by_device("source")},
+                   {_latest_by_device("version")},
+                   COUNT(DISTINCT CASE WHEN a.user_id != '' THEN a.user_id END) AS users,
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a {where}
+            GROUP BY a.device_id
+            ORDER BY last_date DESC, opens DESC
+        """, params)
+        devices = _rows_to_list(cursor.fetchall())
+
+        cursor.execute(f"""
+            SELECT a.user_id,
+                   COALESCE(NULLIF(u.nickname, ''), '') AS nickname,
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a
+            LEFT JOIN user_info u ON a.user_id = u.unionid
+            {where}
+            GROUP BY a.user_id
+            -- 未登录那段固定排在最后，前面的行数才对得上「使用人员」个数
+            ORDER BY (a.user_id = '') ASC, last_date DESC, opens DESC
+        """, params)
+        users = _rows_to_list(cursor.fetchall())
+
+    devices = enrich_list_with_marketing_model(devices, "phone_model")
+    return {"summary": summary, "devices": devices, "users": users}
+
 def get_app_usage_summary():
     with get_cursor() as cursor:
         # 总设备数
