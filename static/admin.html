@@ -363,6 +363,8 @@
                             <th>内容</th>
                             <th>状态</th>
                             <th>创建时间</th>
+                            <th>访问量</th>
+                            <th>用户数</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -961,7 +963,7 @@
         function renderNotifications(data) {
             const tbody = document.getElementById('notification-table');
             if (!data || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty">暂无系统通知</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无系统通知</td></tr>';
                 return;
             }
             tbody.innerHTML = data.map(item => `
@@ -971,6 +973,8 @@
                     <td><span class="text-truncate" title="${escapeHtml(item.msg)}">${escapeHtml(item.msg)}</span></td>
                     <td>${item.status === 'published' ? '<span class="badge" style="background:#e8f5e9;color:#388e3c">已发布</span>' : '<span class="badge" style="background:#fff3e0;color:#f57c00">草稿</span>'}</td>
                     <td>${formatNotificationTime(item.created_at)}</td>
+                    <td>${item.view_count ?? 0}</td>
+                    <td>${item.read_count ?? 0}</td>
                     <td>
                         <button class="btn btn-primary btn-sm" onclick="editNotification('${item.id}')">编辑</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteNotification('${item.id}')">删除</button>
