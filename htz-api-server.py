@@ -122,6 +122,7 @@ ADMIN_ENDPOINTS = {
     ("GET", "/htz-api-pyservice/api/v1/usage/daily-devices"),
     ("GET", "/htz-api-pyservice/api/v1/usage/user-detail"),
     ("GET", "/htz-api-pyservice/api/v1/usage/device-detail"),
+    ("GET", "/htz-api-pyservice/api/v1/usage/segment-detail"),
     ("GET", "/htz-api-pyservice/api/v1/feedback/list"),
     ("POST", "/htz-api-pyservice/api/v1/feedback/update"),
     ("POST", "/htz-api-pyservice/api/v1/feedback/delete"),
@@ -587,6 +588,14 @@ def usage_device_detail(device_id: str):
     result = get_usage_device_detail(device_id)
     if result is None:
         return JSONResponse({"code": "404", "msg": "device usage not found", "data": None})
+    return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
+
+@app.get("/htz-api-pyservice/api/v1/usage/segment-detail")
+def usage_segment_detail(dimension: str, value: str):
+    """看板环形图点某一块弹出的详情：该分组下的用量记录"""
+    result = get_usage_segment_detail(dimension, value)
+    if result is None:
+        return JSONResponse({"code": "404", "msg": "segment not found", "data": None})
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 # ===== 学习统计 API（换设备/清数据后找回）=====

@@ -270,6 +270,8 @@
         .donut-legend-value { color: #344054; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .donut-legend-pct { color: #98a2b3; font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; white-space: nowrap; }
         .donut-empty { display: flex; align-items: center; justify-content: center; height: 180px; color: #98a2b3; font-size: 13px; }
+        .donut-clickable { cursor: pointer; }
+        .donut-legend-row.donut-clickable:hover .donut-legend-label { color: #1976d2; }
         @media (max-width: 1000px) { .donut-grid-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         @media (max-width: 560px) { .donut-grid-inner { grid-template-columns: 1fr; } .donut-svg { width: 130px; height: 130px; } }
     </style>
@@ -449,6 +451,7 @@
                     </select>
                     <input type="text" class="search-box" placeholder="输入筛选条件..." id="user-column-search" oninput="filterUsers()" style="width:220px">
                     <button class="btn btn-sm" onclick="clearUserFilters()">清除</button>
+                    <button class="btn btn-sm" onclick="exportUsersExcel()">导出Excel</button>
                     <button class="btn btn-success refresh-btn" onclick="loadUsers()">刷新</button>
                 </div>
                 <div class="users-stats" id="users-stats"></div>
@@ -768,6 +771,7 @@
         let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [], phonemodelData = [];
         let usageSort = { key: 'date', direction: 'desc' };
         let userSort = { key: 'id', direction: 'desc' };
+        let filteredUsersData = [];
         let phoneModelStatsData = [];
         let phoneModelSort = { key: 'opens', direction: 'desc' };
         let dailyDeviceData = [];
@@ -1539,6 +1543,7 @@ img,video{max-width:100%;height:auto}
                 const matchesColumn = !columnKeyword || !field || getValue(u, field).toLowerCase().includes(columnKeyword);
                 return matchesGlobal && matchesColumn;
             });
+            filteredUsersData = filtered;
             renderUserStats(filtered, field === 'app_version' ? columnKeyword : '');
             renderUsers(filtered);
         }
@@ -1607,6 +1612,52 @@ img,video{max-width:100%;height:auto}
             document.getElementById('user-filter-field').value = '';
             document.getElementById('user-column-search').value = '';
             filterUsers();
+        }
+
+        // 导出当前筛选结果到 Excel（CSV + UTF-8 BOM，Excel/WPS 双击直接打开，中文不乱码）
+        function csvCell(value) {
+            const s = value == null ? '' : String(value);
+            return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }
+
+        function exportUsersExcel() {
+            const data = filteredUsersData.length ? filteredUsersData : usersData;
+            if (!data.length) {
+                alert('没有可导出的用户数据');
+                return;
+            }
+            const headers = ['ID', '昵称', '性别', '地区', '电话', 'OpenID', 'UnionID', '备注', '备注2', 'APP版本', '最近登录', '注册时间', '更新时间'];
+            const lines = [headers.join(',')];
+            data.forEach(u => {
+                const region = [u.country, u.province, u.city].filter(Boolean).join(' ');
+                lines.push([
+                    u.id,
+                    u.nickname || '微信用户',
+                    sexText(u.sex),
+                    region,
+                    u.telephone || '',
+                    u.openid || '',
+                    u.unionid || '',
+                    u.note || '',
+                    u.note2 || '',
+                    u.app_version || '',
+                    u.last_login_time || '',
+                    u.create_time || '',
+                    u.last_update_time || ''
+                ].map(csvCell).join(','));
+            });
+            const csv = '\uFEFF' + lines.join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const now = new Date();
+            const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            a.href = url;
+            a.download = `用户信息_${stamp}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
 
         function detailValue(value, emptyText) {
@@ -1926,7 +1977,7 @@ img,video{max-width:100%;height:auto}
             return n.toLocaleString();
         }
 
-        function renderDonutChart(container, title, metric, items, fmt) {
+        function renderDonutChart(container, title, metric, items, fmt, dimension) {
             const valid = (items || []).filter(i => (i.value || 0) > 0);
             if (valid.length === 0) {
                 container.innerHTML = `<div class="donut-card"><div class="donut-title">${title}</div><div class="donut-empty">暂无数据</div></div>`;
@@ -1936,8 +1987,11 @@ img,video{max-width:100%;height:auto}
             const total = valid.reduce((s, i) => s + i.value, 0);
             const top = sorted.slice(0, 8);
             const restVal = sorted.slice(8).reduce((s, i) => s + i.value, 0);
-            const segs = top.map((s, i) => ({ label: s.label, value: s.value, color: DONUT_COLORS[i % DONUT_COLORS.length], pct: (s.value / total) * 100 }));
-            if (restVal > 0) segs.push({ label: '其他', value: restVal, color: '#cbd5e1', pct: (restVal / total) * 100 });
+            const segs = top.map((s, i) => ({ label: s.label, value: s.value, color: DONUT_COLORS[i % DONUT_COLORS.length], pct: (s.value / total) * 100, other: false }));
+            if (restVal > 0) segs.push({ label: '其他', value: restVal, color: '#cbd5e1', pct: (restVal / total) * 100, other: true });
+
+            // 点某一块 / 图例弹出该分组的用量详情；「其他」是聚合块，不可点。
+            const clickable = s => !!(dimension && !s.other);
 
             const GAP = segs.length > 1 ? 1.1 : 0;
             let offset = 0;
@@ -1946,11 +2000,12 @@ img,video{max-width:100%;height:auto}
                 const dash = segLen.toFixed(2) + ' ' + (100 - segLen).toFixed(2);
                 const dashOffset = (-offset).toFixed(2);
                 offset += s.pct;
-                return `<circle cx="60" cy="60" r="44" fill="none" stroke="${s.color}" stroke-width="16" pathLength="100" stroke-dasharray="${dash}" stroke-dashoffset="${dashOffset}" class="donut-seg"><title>${escapeHtml(s.label)} · ${fmt(s.value)} · ${s.pct.toFixed(1)}%</title></circle>`;
+                const onClick = clickable(s) ? ` onclick="showSegmentDetail('${dimension}', '${jsArg(s.label)}')"` : '';
+                return `<circle cx="60" cy="60" r="44" fill="none" stroke="${s.color}" stroke-width="16" pathLength="100" stroke-dasharray="${dash}" stroke-dashoffset="${dashOffset}" class="donut-seg${clickable(s) ? ' donut-clickable' : ''}"${onClick}><title>${escapeHtml(s.label)} · ${fmt(s.value)} · ${s.pct.toFixed(1)}%</title></circle>`;
             }).join('');
 
             const legend = segs.map(s => `
-                <div class="donut-legend-row">
+                <div class="donut-legend-row${clickable(s) ? ' donut-clickable' : ''}"${clickable(s) ? ` onclick="showSegmentDetail('${dimension}', '${jsArg(s.label)}')"` : ''} title="${clickable(s) ? '点击查看详情' : ''}">
                     <span class="donut-legend-dot" style="background:${s.color}"></span>
                     <span class="donut-legend-label" title="${escapeHtml(s.label)}">${escapeHtml(s.label)}</span>
                     <span class="donut-legend-value">${fmt(s.value)}</span>
@@ -1960,7 +2015,7 @@ img,video{max-width:100%;height:auto}
             container.innerHTML = `
                 <div class="donut-card">
                     <div class="donut-title">${title}</div>
-                    <div class="donut-subtitle">按${metric}</div>
+                    <div class="donut-subtitle">按${metric}${dimension ? ' · 点击查看详情' : ''}</div>
                     <div class="donut-body">
                         <svg viewBox="0 0 120 120" class="donut-svg" role="img" aria-label="${title}">
                             <g transform="rotate(-90 60 60)">${circles}</g>
@@ -1989,10 +2044,10 @@ img,video{max-width:100%;height:auto}
                     <div id="donut-network"></div>
                 </div>`;
 
-            renderDonutChart(document.getElementById('donut-source'), '来源分布', '打开次数', sourceItems, fmt);
-            renderDonutChart(document.getElementById('donut-model'), '机型分布', '打开次数', modelItems, fmt);
-            renderDonutChart(document.getElementById('donut-version'), '版本分布', '设备数', versionItems, fmt);
-            renderDonutChart(document.getElementById('donut-network'), '网络类型', '设备数', networkItems, fmt);
+            renderDonutChart(document.getElementById('donut-source'), '来源分布', '打开次数', sourceItems, fmt, 'source');
+            renderDonutChart(document.getElementById('donut-model'), '机型分布', '打开次数', modelItems, fmt, 'model');
+            renderDonutChart(document.getElementById('donut-version'), '版本分布', '设备数', versionItems, fmt, 'version');
+            renderDonutChart(document.getElementById('donut-network'), '网络类型', '设备数', networkItems, fmt, 'network');
         }
 
         const phoneModelNumericKeys = ['devices', 'opens', 'per_device_opens', 'duration_ms', 'per_device_duration', 'play_duration_ms', 'per_device_play', 'play_share', 'opens_pct'];
@@ -2693,6 +2748,72 @@ img,video{max-width:100%;height:auto}
                 ${devicesHtml}
                 <div class="section-title">使用人员（${users.filter(u => u.user_id).length}）<span style="font-size:12px;color:#999;font-weight:400">　未登录时段单独列在末行</span></div>
                 ${usersHtml}
+            `);
+        }
+
+        // ===== 看板环形图：点击查看详情 =====
+        const segmentDimensionTitles = { source: '来源', model: '机型', version: '版本', network: '网络类型' };
+
+        async function showSegmentDetail(dimension, value) {
+            if (!dimension || value == null || value === '') return;
+            const title = `${segmentDimensionTitles[dimension] || '分组'}详情：${value}`;
+            const seq = ++usageDetailSeq;
+            openUsageDetailModal(title, '<div class="empty">加载中…</div>');
+            let json;
+            try {
+                const res = await fetch(`${API_BASE}/usage/segment-detail?dimension=${encodeURIComponent(dimension)}&value=${encodeURIComponent(value)}`);
+                json = await res.json();
+            } catch (e) {
+                if (seq === usageDetailSeq) openUsageDetailModal(title, '<div class="empty">加载失败，请重试</div>');
+                return;
+            }
+            if (seq !== usageDetailSeq) return;
+            const detail = json.data;
+            if (!detail) {
+                openUsageDetailModal(title, '<div class="empty">没有查到相关记录</div>');
+                return;
+            }
+            const s = detail.summary || {};
+            const statsHtml = renderMiniStats([
+                [s.opens || 0, '打开次数'],
+                [formatDuration(s.duration_ms || 0), '前台使用'],
+                [formatDuration(s.play_duration_ms || 0), '播放时长'],
+                [s.devices || 0, '设备数'],
+                [s.users || 0, '使用人数'],
+                [s.days || 0, '活跃天数'],
+                [renderUsageRange(s), '活跃区间', true]
+            ]);
+            const records = detail.records || [];
+            const recordsHtml = records.length === 0 ? '<div class="empty">暂无记录</div>' : `
+                <table>
+                    <thead><tr>
+                        <th>日期</th><th>设备ID</th><th>用户</th><th>备注2</th>
+                        <th>打开次数</th><th>前台使用</th><th>播放时长</th>
+                        <th>来源</th><th>版本</th><th>机型</th><th>系统</th><th>网络</th>
+                    </tr></thead>
+                    <tbody>
+                        ${records.map(r => `<tr>
+                            <td>${escapeHtml(r.date)}</td>
+                            <td>${r.device_id ? `<span class="text-truncate link-cell" title="${escapeHtml(r.device_id)}" onclick="showUsageDeviceDetail('${jsArg(r.device_id)}')">${escapeHtml(r.device_id)}</span>` : '-'}</td>
+                            <td>${r.user_id
+                                ? `<span class="link-cell" onclick="showUserDetailByUnionid('${jsArg(r.user_id)}')">${escapeHtml(usageNickname(r.nickname))}</span>`
+                                : '<span style="color:#999">未登录</span>'}</td>
+                            <td>${r.note2 ? `<span class="text-truncate" title="${escapeHtml(r.note2)}">${escapeHtml(r.note2)}</span>` : '-'}</td>
+                            <td>${r.open_count || 0}</td>
+                            <td>${formatDuration(r.duration_ms || 0)}</td>
+                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
+                            <td>${escapeHtml(r.source) || '-'}</td>
+                            <td>${r.version ? `<span class="badge badge-info">${escapeHtml(r.version)}</span>` : '-'}</td>
+                            <td>${renderModelCell(r)}</td>
+                            <td>${escapeHtml(r.os_version) || '-'}</td>
+                            <td>${escapeHtml(r.network_type) || '-'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`;
+            openUsageDetailModal(title, `
+                ${statsHtml}
+                <div class="section-title">相关记录（${records.length}${records.length >= 5000 ? '，仅显示前5000条' : ''}）</div>
+                ${recordsHtml}
             `);
         }
 

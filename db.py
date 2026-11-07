@@ -1377,6 +1377,56 @@ def get_app_usage_summary():
             "network_stats": network_stats
         }
 
+# 看板环形图点某一块的详情。dimension 取值 source / version / network / model，
+# value 是环形图上的标签。分组口径与 summary / phone-model-stats 一致：空值统一
+# 显示成「未知」，model 的标签是营销型号（未映射则退回原始上报型号）。
+_SEGMENT_DIMENSION_EXPR = {
+    "source": "COALESCE(NULLIF(a.source, ''), '未知')",
+    "version": "COALESCE(NULLIF(a.version, ''), '未知')",
+    "network": "COALESCE(NULLIF(a.network_type, ''), '未知')",
+    "model": "COALESCE(NULLIF(pm1.marketing_model, ''), NULLIF(pm2.marketing_model, ''), NULLIF(a.phone_model, ''), '未知')",
+}
+
+def get_usage_segment_detail(dimension: str, value: str):
+    """看板环形图点某一块的详细信息：该分组下的用量记录（设备×用户×日期）。"""
+    if dimension not in _SEGMENT_DIMENSION_EXPR or value is None:
+        return None
+    expr = _SEGMENT_DIMENSION_EXPR[dimension]
+    model_joins = (""
+        " LEFT JOIN phone_model_mapping pm1 ON pm1.engineering_model = a.phone_model"
+        " LEFT JOIN phone_model_mapping pm2 ON pm2.engineering_model = a.engineering_model"
+    ) if dimension == "model" else ""
+    with get_cursor() as cursor:
+        cursor.execute(f"""
+            SELECT COUNT(DISTINCT a.device_id) AS devices,
+                   COUNT(DISTINCT CASE WHEN a.user_id != '' THEN a.user_id END) AS users,
+                   {_USAGE_SUM_COLUMNS}
+            FROM app_usage a{model_joins}
+            WHERE {expr} = ?
+        """, (value,))
+        summary = _row_to_dict(cursor.fetchone())
+        if not summary.get("days"):
+            return None
+        summary["dimension"] = dimension
+        summary["value"] = value
+
+        cursor.execute(f"""
+            SELECT a.date, a.device_id, a.user_id,
+                   COALESCE(NULLIF(u.nickname, ''), '') AS nickname,
+                   COALESCE(u.note2, '') AS note2,
+                   a.phone_model, a.engineering_model, a.os_version, a.network_type,
+                   a.source, a.version, a.pkg,
+                   a.open_count, a.duration_ms, a.play_duration_ms
+            FROM app_usage a{model_joins}
+            LEFT JOIN user_info u ON a.user_id = u.unionid
+            WHERE {expr} = ?
+            ORDER BY a.date DESC, a.id DESC
+            LIMIT 5000
+        """, (value,))
+        records = _rows_to_list(cursor.fetchall())
+    records = enrich_list_with_marketing_model(records, "phone_model")
+    return {"summary": summary, "records": records}
+
 # ===== App 可配置页面（关于黄庭书院、功能帮助） =====
 
 ABOUT_ACADEMY_PAGE_KEY = "about_academy"
