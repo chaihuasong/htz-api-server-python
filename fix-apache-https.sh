@@ -27,6 +27,9 @@ cat > "$SITE" <<'VHOST'
     # 管理后台
     ProxyPass /admin http://127.0.0.1:8082/admin
     ProxyPassReverse /admin http://127.0.0.1:8082/admin
+    # 静态资源（意见反馈图片/视频、后台文件等）
+    ProxyPass /static http://127.0.0.1:8082/static
+    ProxyPassReverse /static http://127.0.0.1:8082/static
     # 主服务端(9100) / 十年持志(8081)
     ProxyPass /main-api/ http://127.0.0.1:9100/
     ProxyPassReverse /main-api/ http://127.0.0.1:9100/
@@ -64,6 +67,9 @@ cat > "$SITE" <<'VHOST'
     ProxyPassReverse /htz-api-pyservice/ http://127.0.0.1:8082/htz-api-pyservice/
     ProxyPass /admin http://127.0.0.1:8082/admin
     ProxyPassReverse /admin http://127.0.0.1:8082/admin
+    # 静态资源（意见反馈图片/视频、后台文件等）
+    ProxyPass /static http://127.0.0.1:8082/static
+    ProxyPassReverse /static http://127.0.0.1:8082/static
     ProxyPass /main-api/ http://127.0.0.1:9100/
     ProxyPassReverse /main-api/ http://127.0.0.1:9100/
     ProxyPass /ten-years/ http://127.0.0.1:8081/
@@ -81,6 +87,9 @@ cat > "$SITE" <<'VHOST'
     ProxyPassReverse /htz-api-pyservice/ http://127.0.0.1:8082/htz-api-pyservice/
     ProxyPass /admin http://127.0.0.1:8082/admin
     ProxyPassReverse /admin http://127.0.0.1:8082/admin
+    # 静态资源（意见反馈图片/视频、后台文件等）
+    ProxyPass /static http://127.0.0.1:8082/static
+    ProxyPassReverse /static http://127.0.0.1:8082/static
     ProxyPass /main-api/ http://127.0.0.1:9100/
     ProxyPassReverse /main-api/ http://127.0.0.1:9100/
     ProxyPass /ten-years/ http://127.0.0.1:8081/
