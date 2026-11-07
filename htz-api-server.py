@@ -680,6 +680,13 @@ def get_notifications(request_item: NotificationQueryItem, token: str = Header(d
 
 @app.post("/htz-api-pyservice/api/v1/put/user/notifications")
 def put_user_notifications(notification_ids: List[str] = Body(default=[]), token: str = Header(default="")):
+    """标记通知已读，同时也用作「点开通知」的上报入口。
+
+    每次调用都会让对应通知的 view_count（访问量/点开次数）+1，服务端不去重。
+    所以客户端应在用户**每次点开某条通知**时都上报该通知 id，而不要只在
+    「未读 -> 已读」的首次上报（否则访问量不会随重复点开而增长）。
+    user_notification_read 表按 (user_id, notification_id) 去重，用来算用户数。
+    """
     count = mark_user_notifications_read(token, notification_ids)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"count": count}})
 

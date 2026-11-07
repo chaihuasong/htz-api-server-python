@@ -641,7 +641,8 @@ def mark_user_notifications_read(user_id: str, notification_ids: list):
             VALUES (?, ?, ?)
             ON CONFLICT(user_id, notification_id) DO UPDATE SET read_at=excluded.read_at
         """, [(user_id, notification_id, now) for notification_id in unique_ids])
-        # 访问量 +1：每读一次（包括重复阅读）都累计
+        # 访问量 +1：每调一次就 +1（含重复点开/重复阅读），服务端不去重。
+        # 客户端应在每次「点开通知」时都上报，访问量才等于真实的点开次数。
         cursor.executemany("""
             UPDATE system_notification SET view_count = COALESCE(view_count, 0) + 1
             WHERE id = ?
