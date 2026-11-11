@@ -145,7 +145,7 @@
         .users-table .avatar-empty { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #eef2f7; color: #98a2b3; font-size: 11px; }
         .users-table .user-id { color: #98a2b3; font-variant-numeric: tabular-nums; }
         .users-table .user-name { font-weight: 600; }
-        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 160px; min-width: 160px; max-width: 160px; }
+        .users-table th[data-col="nickname"], .users-table td[data-col="nickname"] { width: 160px; min-width: 160px; max-width: 160px; }
         .users-table .user-name { display: inline-block; max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
         .users-table th.col-region, .users-table td.col-region { width: 96px; min-width: 96px; max-width: 96px; }
         .users-table .user-region { display: inline-block; max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; color: #667085; }
@@ -153,6 +153,8 @@
         .users-table .user-time { color: #667085; font-variant-numeric: tabular-nums; }
         .users-table th.col-actions,
         .users-table td.user-actions { position: sticky; right: 0; z-index: 1; width: 1%; padding-left: 10px; padding-right: 12px; box-shadow: -8px 0 10px -8px rgba(16, 24, 40, 0.18); }
+        .users-table th.col-actions-unpinned,
+        .users-table td.col-actions-unpinned { position: static; right: auto; z-index: auto; box-shadow: none; }
         .users-table th.col-actions { z-index: 3; background: #f4f7fb; }
         .users-table td.user-actions { background: #fff; }
         .users-table tbody tr:nth-child(even) td.user-actions { background: #fbfcfe; }
@@ -179,8 +181,8 @@
         .usage-table tbody tr:nth-child(even) td { background: #fbfcfe; }
         .usage-table tbody tr:hover td { background: #f1f7ff; }
         .usage-table tbody tr:last-child td { border-bottom: 0; }
-        .usage-table th:nth-child(4), .usage-table td:nth-child(4) { width: 150px; min-width: 150px; max-width: 150px; }
-        .usage-table th:nth-child(5), .usage-table td:nth-child(5) { width: 120px; min-width: 120px; max-width: 160px; }
+        .usage-table th[data-col="nickname"], .usage-table td[data-col="nickname"] { width: 150px; min-width: 150px; max-width: 150px; }
+        .usage-table th[data-col="note2"], .usage-table td[data-col="note2"] { width: 120px; min-width: 120px; max-width: 160px; }
         .usage-table .usage-nickname { display: inline-block; max-width: 124px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
         .usage-table .usage-note2 { display: inline-block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
         .usage-table .usage-id, .usage-table .usage-date, .usage-table .usage-number { font-variant-numeric: tabular-nums; }
@@ -252,28 +254,66 @@
             .file-url { width: 180px; }
         }
         @media (max-width: 700px) { .stats-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); gap: 9px; } .stat-card { min-height: 88px; padding: 13px 14px; } .stat-card .stat-value { font-size: 20px; } }
-        /* 首页数据看板（环形图） */
-        .donut-grid-inner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
-        .donut-card { display: flex; flex-direction: column; background: #fff; border: 1px solid #e8edf3; border-radius: 10px; padding: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
-        .donut-title { font-size: 14px; font-weight: 600; color: #344054; }
-        .donut-subtitle { font-size: 12px; color: #98a2b3; margin-top: 2px; }
-        .donut-body { display: flex; justify-content: center; padding: 8px 0 10px; }
-        .donut-svg { width: 150px; height: 150px; }
-        .donut-seg { transition: filter .15s ease; cursor: default; }
-        .donut-seg:hover { filter: brightness(1.12) saturate(1.2); }
-        .donut-center-value { fill: #101828; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
-        .donut-center-label { fill: #98a2b3; font-size: 11px; }
-        .donut-legend { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
-        .donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #475467; }
-        .donut-legend-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
-        .donut-legend-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .donut-legend-value { color: #344054; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-        .donut-legend-pct { color: #98a2b3; font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; white-space: nowrap; }
-        .donut-empty { display: flex; align-items: center; justify-content: center; height: 180px; color: #98a2b3; font-size: 13px; }
-        .donut-clickable { cursor: pointer; }
-        .donut-legend-row.donut-clickable:hover .donut-legend-label { color: #1976d2; }
-        @media (max-width: 1000px) { .donut-grid-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 560px) { .donut-grid-inner { grid-template-columns: 1fr; } .donut-svg { width: 130px; height: 130px; } }
+        .table-stage { position: relative; margin-top: 8px; border: 1px solid #e8edf3; border-radius: 10px; background: #fff; }
+        .table-stage-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #e8edf3; background: #f8fafc; border-radius: 10px 10px 0 0; }
+        .table-stage-heading { min-width: 0; }
+        .table-stage-title { font-size: 16px; font-weight: 650; color: #101828; line-height: 1.4; }
+        .table-stage-scope { margin-top: 4px; max-width: 860px; color: #475467; font-size: 12px; line-height: 1.55; }
+        .table-stage-scope.is-partial { color: #b54708; }
+        .table-stage-actions { position: relative; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+        .table-stage-actions .btn { border: 1px solid #d0d5dd; border-radius: 6px; background: #fff; color: #344054; }
+        .table-stage-actions .btn:hover { background: #f8fafc; }
+        .table-stage-actions .btn-export { color: #067647; border-color: #abefc6; background: #f6fef9; }
+        .table-stage-actions .btn-export:hover { background: #ecfdf3; }
+        .table-stage .toolbar { margin: 0; padding: 12px 14px; border-bottom: 1px solid #edf0f4; }
+        .table-stage .users-toolbar { border: 0; border-radius: 0; border-bottom: 1px solid #edf0f4; }
+        .table-stage .users-stats { border: 0; border-bottom: 1px solid #edf0f4; }
+        .table-stage .users-table-wrap,
+        .table-stage .usage-table-wrap,
+        .table-stage .source-stats-wrap,
+        .table-stage .phone-model-table-wrap,
+        .table-stage .daily-device-table-wrap { border: 0; border-radius: 0; }
+        .table-stage-scroll { overflow: auto; max-height: 62vh; }
+        .table-stage-scroll > table { margin-top: 0; }
+        .table-stage thead th { position: sticky; top: 0; z-index: 2; }
+        .col-drag { display: inline-block; margin-right: 6px; color: #98a2b3; letter-spacing: -1px; cursor: grab; user-select: none; }
+        .col-drag:active { cursor: grabbing; }
+        th.col-drop-target { box-shadow: inset 3px 0 0 #1976d2; }
+        .col-order-pop { position: absolute; top: 40px; right: 0; z-index: 30; width: 320px; max-height: min(480px, 70vh); overflow: auto; padding: 12px; border: 1px solid #e3e9f0; border-radius: 10px; background: #fff; box-shadow: 0 12px 32px rgba(16,24,40,.16); }
+        .col-order-pop[hidden] { display: none; }
+        .col-order-title { font-size: 14px; font-weight: 650; color: #101828; }
+        .col-order-hint { margin: 4px 0 8px; color: #667085; font-size: 12px; line-height: 1.5; }
+        .col-order-list { display: flex; flex-direction: column; gap: 6px; }
+        .col-order-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: #f8fafc; }
+        .col-order-item span { flex: 1; min-width: 0; font-size: 13px; color: #344054; }
+        .col-order-footer { display: flex; justify-content: flex-end; margin-top: 10px; }
+        .table-stage:fullscreen,
+        .table-stage:-webkit-full-screen,
+        .table-stage.table-stage-fallback-fs { display: flex; flex-direction: column; box-sizing: border-box; width: 100%; height: 100%; margin: 0; overflow: hidden; border-radius: 0; background: #fff; }
+        .table-stage:fullscreen .table-stage-bar,
+        .table-stage:-webkit-full-screen .table-stage-bar,
+        .table-stage.table-stage-fallback-fs .table-stage-bar,
+        .table-stage:fullscreen .toolbar,
+        .table-stage:-webkit-full-screen .toolbar,
+        .table-stage.table-stage-fallback-fs .toolbar,
+        .table-stage:fullscreen .users-stats,
+        .table-stage:-webkit-full-screen .users-stats,
+        .table-stage.table-stage-fallback-fs .users-stats,
+        .table-stage:fullscreen .about-hint,
+        .table-stage:-webkit-full-screen .about-hint,
+        .table-stage.table-stage-fallback-fs .about-hint,
+        .table-stage:fullscreen .phone-model-summary,
+        .table-stage:-webkit-full-screen .phone-model-summary,
+        .table-stage.table-stage-fallback-fs .phone-model-summary { flex-shrink: 0; }
+        .table-stage:fullscreen .table-stage-scroll,
+        .table-stage:-webkit-full-screen .table-stage-scroll,
+        .table-stage.table-stage-fallback-fs .table-stage-scroll { flex: 1 1 auto; max-height: none !important; min-height: 0; }
+        .table-stage-fallback-fs { position: fixed; inset: 0; z-index: 4000; }
+        body.table-fs-lock { overflow: hidden; }
+        @media (max-width: 700px) {
+            .table-stage-bar { flex-direction: column; }
+            .table-stage-actions { justify-content: flex-start; }
+        }
     </style>
 </head>
 <body>
@@ -319,6 +359,7 @@
         <div class="content">
             <!-- 意见反馈面板 -->
             <div id="feedback-panel" class="panel">
+                <div class="table-stage" data-table-id="feedback">
                 <div class="toolbar">
                     <input type="text" class="search-box" placeholder="搜索反馈内容/联系方式..." id="feedback-search" onkeyup="filterFeedback()">
                     <select id="feedback-status-filter" class="search-box" style="width:160px" onchange="filterFeedback()">
@@ -329,6 +370,7 @@
                     </select>
                     <button class="btn btn-success refresh-btn" onclick="loadFeedback()">刷新</button>
                 </div>
+                <div class="table-stage-scroll">
                 <table>
                     <thead>
                         <tr>
@@ -347,14 +389,18 @@
                     </thead>
                     <tbody id="feedback-table"></tbody>
                 </table>
+                </div>
+                </div>
             </div>
             <!-- 系统通知面板 -->
             <div id="notification-panel" class="panel">
+                <div class="table-stage" data-table-id="notification">
                 <div class="toolbar">
                     <button class="btn btn-primary" onclick="showAddNotificationModal()">+ 发布通知</button>
                     <input type="text" class="search-box" placeholder="搜索通知标题/内容..." id="notification-search" onkeyup="filterNotifications()">
                     <button class="btn btn-success refresh-btn" onclick="loadNotifications()">刷新</button>
                 </div>
+                <div class="table-stage-scroll">
                 <table>
                     <thead>
                         <tr>
@@ -370,6 +416,8 @@
                     </thead>
                     <tbody id="notification-table"></tbody>
                 </table>
+                </div>
+                </div>
             </div>
             <!-- 关于黄庭书院 -->
             <div id="about-panel" class="panel">
@@ -397,12 +445,14 @@
             </div>
             <!-- 文件上传 -->
             <div id="files-panel" class="panel">
+                <div class="table-stage" data-table-id="files">
                 <div class="toolbar">
                     <input type="file" id="admin-file-input" multiple accept="image/*,video/*,.pdf">
                     <button class="btn btn-primary" id="admin-file-upload" onclick="uploadAdminFiles()">上传</button>
                     <button class="btn btn-success refresh-btn" onclick="loadAdminFiles()">刷新</button>
                 </div>
                 <p class="about-hint">上传后的文件放在 /static/uploads/。下表是当前目录，地址按你打开本页的域名拼出来，贴到功能帮助或关于书院里即可。手机要能打开这个地址，请用线上后台域名打开本页再复制。</p>
+                <div class="table-stage-scroll">
                 <table>
                     <thead>
                         <tr>
@@ -416,13 +466,17 @@
                     </thead>
                     <tbody id="files-table"></tbody>
                 </table>
+                </div>
+                </div>
             </div>
             <!-- AK/SK 管理面板 -->
             <div id="aksk-panel" class="panel">
+                <div class="table-stage" data-table-id="aksk">
                 <div class="toolbar">
                     <button class="btn btn-primary" onclick="showAddAkskModal()">+ 新增 AK/SK</button>
                     <button class="btn btn-success refresh-btn" onclick="loadAksk()">刷新</button>
                 </div>
+                <div class="table-stage-scroll">
                 <table>
                     <thead>
                         <tr>
@@ -437,9 +491,12 @@
                     </thead>
                     <tbody id="aksk-table"></tbody>
                 </table>
+                </div>
+                </div>
             </div>
             <!-- 用户信息面板 -->
             <div id="users-panel" class="panel">
+                <div class="table-stage" data-table-id="users">
                 <div class="toolbar users-toolbar">
                     <input type="text" class="search-box" placeholder="搜索用户..." id="user-search" onkeyup="filterUsers()">
                     <select class="usage-filter-select" id="user-filter-field" onchange="filterUsers()" aria-label="筛选字段">
@@ -453,11 +510,10 @@
                     </select>
                     <input type="text" class="search-box" placeholder="输入筛选条件..." id="user-column-search" oninput="filterUsers()" style="width:220px">
                     <button class="btn btn-sm" onclick="clearUserFilters()">清除</button>
-                    <button class="btn btn-sm" onclick="exportUsersExcel()">导出Excel</button>
                     <button class="btn btn-success refresh-btn" onclick="loadUsers()">刷新</button>
                 </div>
                 <div class="users-stats" id="users-stats"></div>
-                <div class="users-table-wrap">
+                <div class="users-table-wrap table-stage-scroll">
                 <table class="users-table">
                     <thead>
                         <tr>
@@ -478,13 +534,16 @@
                     <tbody id="users-table"></tbody>
                 </table>
                 </div>
+                </div>
             </div>
             <!-- 日志信息面板 -->
             <div id="logs-panel" class="panel">
+                <div class="table-stage" data-table-id="logs">
                 <div class="toolbar">
                     <input type="text" class="search-box" placeholder="搜索日志..." id="log-search" onkeyup="filterLogs()">
                     <button class="btn btn-success refresh-btn" onclick="loadLogs()">刷新</button>
                 </div>
+                <div class="table-stage-scroll">
                 <table>
                     <thead>
                         <tr>
@@ -500,14 +559,18 @@
                     </thead>
                     <tbody id="logs-table"></tbody>
                 </table>
+                </div>
+                </div>
             </div>
             <!-- 机型映射面板 -->
             <div id="phonemodel-panel" class="panel">
+                <div class="table-stage" data-table-id="phonemodel">
                 <div class="toolbar">
                     <button class="btn btn-primary" onclick="showAddPhoneModelModal()">+ 新增映射</button>
                     <input type="text" class="search-box" placeholder="搜索工程型号/营销型号..." id="phonemodel-search" onkeyup="filterPhoneModels()">
                     <button class="btn btn-success refresh-btn" onclick="loadPhoneModels()">刷新</button>
                 </div>
+                <div class="table-stage-scroll">
                 <table>
                     <thead>
                         <tr>
@@ -522,6 +585,8 @@
                     </thead>
                     <tbody id="phonemodel-table"></tbody>
                 </table>
+                </div>
+                </div>
             </div>
             <!-- 用量统计面板 -->
             <div id="usage-panel" class="panel active">
@@ -529,7 +594,6 @@
                     <button class="btn btn-success refresh-btn" onclick="loadUsage()">刷新</button>
                 </div>
                 <div class="stats-grid" id="usage-stats-grid"></div>
-                <div id="usage-donuts"></div>
                 <div id="usage-source-section"></div>
                 <div class="chart-container">
                     <div class="chart-title">最近30天趋势</div>
@@ -542,7 +606,7 @@
                     </div>
                 </div>
                 <div id="usage-daily-devices"></div>
-                <div class="section-title">详细记录</div>
+                <div class="table-stage" data-table-id="usage">
                 <div class="toolbar usage-toolbar">
                     <input type="text" class="search-box" placeholder="搜索设备ID/用户..." id="usage-search" onkeyup="filterUsage()">
                     <select class="usage-filter-select" id="usage-filter-field" onchange="filterUsage()" aria-label="筛选字段">
@@ -560,7 +624,7 @@
                     <input type="text" class="search-box" placeholder="输入筛选条件..." id="usage-column-search" oninput="filterUsage()" style="width:220px">
                     <button class="btn btn-sm" onclick="clearUsageFilters()">清除</button>
                 </div>
-                <div class="usage-table-wrap">
+                <div class="usage-table-wrap table-stage-scroll">
                 <table class="usage-table">
                     <thead>
                         <tr>
@@ -583,6 +647,7 @@
                     </thead>
                     <tbody id="usage-table"></tbody>
                 </table>
+                </div>
                 </div>
                 <div id="usage-phone-model-section"></div>
             </div>
@@ -768,9 +833,10 @@
         </div>
     </div>
 
+    <script src="/static/admin-tables.js"></script>
     <script>
         const API_BASE = '/htz-api-pyservice/api/v1';
-        let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [], phonemodelData = [];
+        let akskData = [], usersData = [], logsData = [], usageData = [], feedbackData = [], notificationsData = [], phonemodelData = [], filesData = [];
         let usageSort = { key: 'date', direction: 'desc' };
         let userSort = { key: 'id', direction: 'desc' };
         let filteredUsersData = [];
@@ -780,6 +846,362 @@
         let dailyDeviceSort = { key: 'date', direction: 'desc' };
         // 连着点好几个昵称时，只认最后一次点击的结果
         let userDetailSeq = 0;
+
+        const COVERAGE_ALL_LOADED = '导出的是当前筛选条件下、已经加载到本表的全部行，包含需要滚动才看得到的行，不是只导出当前屏幕。行按当前排序原样写出，不按内容去重。';
+
+        function fullCoverage(extra) {
+            return COVERAGE_ALL_LOADED + (extra || '这个接口一次返回全部记录，没有再分页。');
+        }
+
+        function cappedCoverage(note) {
+            return COVERAGE_ALL_LOADED + note;
+        }
+
+        function fieldText(parts) {
+            const ready = parts.filter(Boolean);
+            return ready.length ? ready.join('，') : '无';
+        }
+
+        function inputText(id) {
+            const el = document.getElementById(id);
+            return el ? el.value.trim() : '';
+        }
+
+        function selectText(id) {
+            const el = document.getElementById(id);
+            if (!el || !el.value) return '';
+            const option = Array.from(el.options).find(item => item.value === el.value);
+            return option ? option.textContent : el.value;
+        }
+
+        function sortTextOf(state, columns) {
+            if (!state) return '无';
+            const col = (columns || []).find(item => item.key === state.key);
+            return `${col ? col.label : state.key} ${state.direction === 'asc' ? '升序' : '降序'}`;
+        }
+
+        function publishRows(id, rows) {
+            AdminTables.setRows(id, rows);
+            AdminTables.finish(id);
+        }
+
+        function numOrBlank(value) {
+            if (value == null || value === '') return '';
+            const n = Number(value);
+            return Number.isFinite(n) ? n : value;
+        }
+
+        function feedbackStatusText(status) {
+            if (status === 'done') return '已回复';
+            if (status === 'processing') return '处理中';
+            return '未处理';
+        }
+
+        function notificationStatusText(status) {
+            return status === 'published' ? '已发布' : '草稿';
+        }
+
+        function modelExportText(item) {
+            if (!item || !item.phone_model && !item.marketing_model && !item.engineering_model) return '';
+            const lines = [];
+            if (item.phone_model) lines.push(item.phone_model);
+            if (item.marketing_model) lines.push('→ ' + item.marketing_model);
+            if (item.engineering_model) lines.push(item.engineering_model);
+            return lines.join('\n');
+        }
+
+        function feedbackAttachmentText(item) {
+            const parts = parseImages(item).slice();
+            if (item.video_url) parts.push(item.video_url);
+            return parts.join('\n');
+        }
+
+        const feedbackColumns = [
+            { key: 'id', label: 'ID', type: 'number' },
+            { key: 'user', label: '用户', type: 'text' },
+            { key: 'contact', label: '联系方式', type: 'text' },
+            { key: 'category', label: '分类', type: 'text' },
+            { key: 'content', label: '内容', type: 'text' },
+            { key: 'attachment', label: '附件', type: 'text' },
+            { key: 'version', label: '版本', type: 'text' },
+            { key: 'device', label: '设备', type: 'text' },
+            { key: 'status', label: '状态', type: 'text' },
+            { key: 'created_at', label: '提交时间', type: 'datetime' },
+            { key: 'actions', label: '操作', type: 'text', export: false }
+        ];
+        const notificationColumns = [
+            { key: 'id', label: 'ID', type: 'text' },
+            { key: 'title', label: '标题', type: 'text' },
+            { key: 'msg', label: '内容', type: 'text' },
+            { key: 'status', label: '状态', type: 'text' },
+            { key: 'created_at', label: '创建时间', type: 'datetime' },
+            { key: 'view_count', label: '访问量', type: 'number' },
+            { key: 'read_count', label: '用户数', type: 'number' },
+            { key: 'actions', label: '操作', type: 'text', export: false }
+        ];
+        const filesColumns = [
+            { key: 'preview', label: '预览', type: 'text' },
+            { key: 'name', label: '文件名', type: 'text' },
+            { key: 'size', label: '大小', type: 'number' },
+            { key: 'mtime', label: '时间', type: 'datetime' },
+            { key: 'url', label: '地址', type: 'text' },
+            { key: 'actions', label: '操作', type: 'text', export: false }
+        ];
+        const akskColumns = [
+            { key: 'id', label: 'ID', type: 'number' },
+            { key: 'appName', label: '应用名称', type: 'text' },
+            { key: 'platform', label: '平台', type: 'text' },
+            { key: 'accessKey', label: 'Access Key', type: 'text' },
+            { key: 'accessKeySecure', label: 'Access Key Secret', type: 'text' },
+            { key: 'note', label: '备注', type: 'text' },
+            { key: 'actions', label: '操作', type: 'text', export: false }
+        ];
+        const usersColumns = [
+            { key: 'id', label: 'ID', type: 'number' },
+            { key: 'avatar', label: '头像', type: 'text' },
+            { key: 'nickname', label: '昵称', type: 'text' },
+            { key: 'region', label: '地区', type: 'text' },
+            { key: 'telephone', label: '电话', type: 'text' },
+            { key: 'note', label: '备注', type: 'text' },
+            { key: 'create_time', label: '创建时间', type: 'datetime' },
+            { key: 'last_update_time', label: '更新时间', type: 'datetime' },
+            { key: 'app_version', label: '当前版本', type: 'text' },
+            { key: 'last_login_time', label: '最近登录', type: 'datetime' },
+            { key: 'note2', label: '备注2', type: 'text' },
+            { key: 'actions', label: '操作', type: 'text', export: false }
+        ];
+        const logsColumns = [
+            { key: 'id', label: 'ID', type: 'number' },
+            { key: 'pkg', label: '包名', type: 'text' },
+            { key: 'version', label: '版本', type: 'text' },
+            { key: 'phone', label: '手机', type: 'text' },
+            { key: 'type', label: '类型', type: 'text' },
+            { key: 'info', label: '信息', type: 'text' },
+            { key: 'time', label: '时间', type: 'datetime' },
+            { key: 'user', label: '用户', type: 'text' }
+        ];
+        const phonemodelColumns = [
+            { key: 'id', label: 'ID', type: 'number' },
+            { key: 'engineering_model', label: '工程型号', type: 'text' },
+            { key: 'marketing_model', label: '营销型号', type: 'text' },
+            { key: 'manufacturer', label: '厂商', type: 'text' },
+            { key: 'remark', label: '备注', type: 'text' },
+            { key: 'created_at', label: '创建时间', type: 'datetime' },
+            { key: 'actions', label: '操作', type: 'text', export: false }
+        ];
+        const usageColumns = [
+            { key: 'id', label: 'ID', type: 'number' },
+            { key: 'device_id', label: '设备ID', type: 'text' },
+            { key: 'user_id', label: '用户', type: 'text' },
+            { key: 'nickname', label: '昵称', type: 'text' },
+            { key: 'note2', label: '备注2', type: 'text' },
+            { key: 'date', label: '日期', type: 'date' },
+            { key: 'open_count', label: '打开次数', type: 'number' },
+            { key: 'duration', label: '前台使用', type: 'text' },
+            { key: 'play', label: '播放时长', type: 'text' },
+            { key: 'source', label: '来源', type: 'text' },
+            { key: 'version', label: '版本', type: 'text' },
+            { key: 'phone_model', label: '手机型号', type: 'text' },
+            { key: 'os_version', label: '系统版本', type: 'text' },
+            { key: 'network_type', label: '网络类型', type: 'text' },
+            { key: 'pkg', label: '包名', type: 'text' }
+        ];
+        const sourceColumns = [
+            { key: 'source', label: '来源', type: 'text' },
+            { key: 'today_devices', label: '今日设备数', type: 'number' },
+            { key: 'today_opens', label: '今日打开次数', type: 'number' },
+            { key: 'today_duration', label: '今日前台使用', type: 'text' },
+            { key: 'today_play', label: '今日播放时长', type: 'text' },
+            { key: 'total_devices', label: '累计设备数', type: 'number' },
+            { key: 'total_opens', label: '累计打开次数', type: 'number' },
+            { key: 'total_duration', label: '累计前台使用', type: 'text' },
+            { key: 'total_play', label: '累计播放时长', type: 'text' }
+        ];
+        const dailyColumns = [
+            { key: 'date', label: '日期', type: 'date' },
+            { key: 'devices', label: '设备数', type: 'number' },
+            { key: 'opens', label: '打开次数', type: 'number' },
+            { key: 'duration', label: '前台使用', type: 'text' },
+            { key: 'play', label: '播放时长', type: 'text' }
+        ];
+        const phoneModelStatColumns = [
+            { key: 'rank', label: '#', type: 'number' },
+            { key: 'marketing_model', label: '营销型号', type: 'text' },
+            { key: 'phone_model', label: '工程型号', type: 'text' },
+            { key: 'devices', label: '设备数', type: 'number' },
+            { key: 'opens', label: '打开次数', type: 'number' },
+            { key: 'per_device_opens', label: '每设备打开', type: 'number' },
+            { key: 'duration', label: '前台使用', type: 'text' },
+            { key: 'per_device_duration', label: '每设备前台', type: 'text' },
+            { key: 'play', label: '播放时长', type: 'text' },
+            { key: 'per_device_play', label: '每设备播放', type: 'text' },
+            { key: 'play_share', label: '播放/前台', type: 'percent' },
+            { key: 'opens_pct', label: '打开占比', type: 'percent' }
+        ];
+
+        function feedbackScope() {
+            const keyword = inputText('feedback-search');
+            const status = selectText('feedback-status-filter');
+            return {
+                filterText: fieldText([keyword && `关键词「${keyword}」`, status && `状态 ${status}`]),
+                sortText: '接口顺序（最新在前）',
+                partial: true,
+                coverage: cappedCoverage('意见反馈接口最多返回最新 1000 条。超过这个上限时，导出的不是反馈全库，只是已加载的这批里符合当前筛选的全部行。')
+            };
+        }
+
+        function notificationScope() {
+            const keyword = inputText('notification-search');
+            return {
+                filterText: fieldText([keyword && `关键词「${keyword}」`]),
+                sortText: '接口顺序（创建时间倒序）',
+                partial: true,
+                coverage: cappedCoverage('系统通知接口最多返回最新 1000 条。超过这个上限时，导出的不是通知全库，只是已加载的这批里符合当前筛选的全部行。')
+            };
+        }
+
+        function filesScope() {
+            return {
+                filterText: '无',
+                sortText: '按修改时间倒序',
+                partial: false,
+                coverage: fullCoverage('文件接口返回上传目录中的全部文件，没有分页。「大小」列单位是字节。')
+            };
+        }
+
+        function akskScope() {
+            return {
+                filterText: '无',
+                sortText: '接口返回顺序',
+                partial: false,
+                coverage: fullCoverage('AK/SK 接口返回全部配置，没有分页。')
+            };
+        }
+
+        function usersScope() {
+            const keyword = inputText('user-search');
+            const field = document.getElementById('user-filter-field') ? document.getElementById('user-filter-field').value : '';
+            const columnKeyword = inputText('user-column-search');
+            return {
+                filterText: fieldText([
+                    keyword && `关键词「${keyword}」`,
+                    field && columnKeyword && `${selectText('user-filter-field')} 包含「${columnKeyword}」`
+                ]),
+                sortText: sortTextOf(userSort, usersColumns),
+                partial: false,
+                coverage: fullCoverage('用户列表接口返回全部用户。')
+            };
+        }
+
+        function logsScope() {
+            const keyword = inputText('log-search');
+            return {
+                filterText: fieldText([keyword && `关键词「${keyword}」`]),
+                sortText: '接口顺序（ID 倒序）',
+                partial: true,
+                coverage: cappedCoverage('日志列表接口最多返回最新 500 条，信息字段最长 500 个字符，更长的内容在列表和导出里以省略号截断。这不是日志全库，也不是每条日志的全文。')
+            };
+        }
+
+        function phonemodelScope() {
+            const keyword = inputText('phonemodel-search');
+            return {
+                filterText: fieldText([keyword && `关键词「${keyword}」`]),
+                sortText: '接口顺序（ID 倒序）',
+                partial: false,
+                coverage: fullCoverage('机型映射接口返回全部映射，没有分页。')
+            };
+        }
+
+        function usageScope() {
+            const keyword = inputText('usage-search');
+            const field = document.getElementById('usage-filter-field') ? document.getElementById('usage-filter-field').value : '';
+            const columnKeyword = inputText('usage-column-search');
+            return {
+                filterText: fieldText([
+                    keyword && `关键词「${keyword}」`,
+                    field && columnKeyword && `${selectText('usage-filter-field')} 包含「${columnKeyword}」`
+                ]),
+                sortText: sortTextOf(usageSort, [
+                    { key: 'id', label: 'ID' }, { key: 'device_id', label: '设备ID' },
+                    { key: 'user_id', label: '用户' }, { key: 'nickname', label: '昵称' },
+                    { key: 'note2', label: '备注2' }, { key: 'date', label: '日期' },
+                    { key: 'open_count', label: '打开次数' }, { key: 'duration_ms', label: '前台使用' },
+                    { key: 'play_duration_ms', label: '播放时长' }, { key: 'source', label: '来源' },
+                    { key: 'version', label: '版本' }, { key: 'phone_model', label: '手机型号' },
+                    { key: 'os_version', label: '系统版本' }, { key: 'network_type', label: '网络类型' },
+                    { key: 'pkg', label: '包名' }
+                ]),
+                partial: true,
+                coverage: cappedCoverage('用量明细接口最多返回 1000 条（按日期、记录 ID 倒序）。超过这个上限时，导出的不是用量全库，只是已加载的这批里符合当前筛选和排序的全部行。')
+            };
+        }
+
+        function sourceScope() {
+            return {
+                filterText: '无',
+                sortText: '接口顺序（按累计打开次数降序）',
+                partial: false,
+                coverage: fullCoverage('来源分布是全部用量按来源汇总的结果，没有分页。今日和累计是同一张表里的两组指标。')
+            };
+        }
+
+        function dailyScope() {
+            return {
+                filterText: '无',
+                sortText: sortTextOf(dailyDeviceSort, [
+                    { key: 'date', label: '日期' }, { key: 'devices', label: '设备数' },
+                    { key: 'opens', label: '打开次数' }, { key: 'duration', label: '前台使用' },
+                    { key: 'play_duration', label: '播放时长' }
+                ]),
+                partial: true,
+                coverage: cappedCoverage('每日设备数固定只统计最近 30 天。这是统计窗口，不是把更早的历史分页后悄悄只给了一页。导出包含这个窗口里的全部日期。')
+            };
+        }
+
+        function phoneModelStatScope() {
+            return {
+                filterText: '无',
+                sortText: sortTextOf(phoneModelSort, [
+                    { key: 'marketing_model', label: '营销型号' }, { key: 'phone_model', label: '工程型号' },
+                    { key: 'devices', label: '设备数' }, { key: 'opens', label: '打开次数' },
+                    { key: 'per_device_opens', label: '每设备打开' }, { key: 'duration_ms', label: '前台使用' },
+                    { key: 'per_device_duration', label: '每设备前台' }, { key: 'play_duration_ms', label: '播放时长' },
+                    { key: 'per_device_play', label: '每设备播放' }, { key: 'play_share', label: '播放/前台' },
+                    { key: 'opens_pct', label: '打开占比' }
+                ]),
+                partial: false,
+                coverage: fullCoverage('营销手机型号分布是按上报型号汇总后的全部组合，没有分页。「播放/前台」和「打开占比」是百分比。')
+            };
+        }
+
+        function detailScope(filterText) {
+            return {
+                filterText: filterText || '当前明细',
+                sortText: '接口返回顺序',
+                partial: false,
+                coverage: fullCoverage('该明细接口按这一组返回全部记录，没有分页。')
+            };
+        }
+
+        function initAdminTables() {
+            [
+                ['feedback', '意见反馈', feedbackColumns, feedbackScope],
+                ['notification', '系统通知', notificationColumns, notificationScope],
+                ['files', '文件', filesColumns, filesScope],
+                ['aksk', 'AK/SK 管理', akskColumns, akskScope],
+                ['users', '用户信息', usersColumns, usersScope],
+                ['logs', '日志信息', logsColumns, logsScope],
+                ['phonemodel', '机型映射', phonemodelColumns, phonemodelScope],
+                ['usage', '用量详细记录', usageColumns, usageScope],
+                ['usage-source', '来源分布', sourceColumns, sourceScope],
+                ['usage-daily', '每日设备数（最近30天）', dailyColumns, dailyScope],
+                ['usage-phone-model', '营销手机型号分布', phoneModelStatColumns, phoneModelStatScope]
+            ].forEach(([id, title, columns, scope]) => {
+                AdminTables.register({ id, title, columns, rows: [], scope });
+                AdminTables.finish(id);
+            });
+        }
 
         // 日志表有几百行，每敲一个键就整表 innerHTML 重建一次，输入时会明显卡顿。
         function debounce(fn, wait) {
@@ -840,10 +1262,28 @@
             return parts.length ? `<div style="display:flex;align-items:center">${parts.join('')}</div>` : '-';
         }
 
+        function feedbackRows(data) {
+            return (data || []).map(item => ({
+                id: numOrBlank(item.id),
+                user: item.user_nickname || item.nickname || '',
+                contact: item.contact || '',
+                category: item.category || '',
+                content: item.content || '',
+                attachment: feedbackAttachmentText(item),
+                version: item.version || '',
+                device: modelExportText(item),
+                status: feedbackStatusText(item.status),
+                created_at: item.created_at || '',
+                actions: ''
+            }));
+        }
+
         function renderFeedback(data) {
             const tbody = document.getElementById('feedback-table');
+            const rows = feedbackRows(data);
             if (!data || data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="11" class="empty">暂无反馈</td></tr>';
+                publishRows('feedback', []);
                 return;
             }
             tbody.innerHTML = data.map(item => `
@@ -864,6 +1304,7 @@
                     </td>
                 </tr>
             `).join('');
+            publishRows('feedback', rows);
         }
 
         function filterFeedback() {
@@ -950,7 +1391,10 @@
         function formatNotificationTime(value) {
             const ts = Number(value || 0);
             if (!ts) return '';
-            return new Date(ts).toLocaleString('zh-CN', { hour12: false });
+            const date = new Date(ts);
+            if (Number.isNaN(date.getTime())) return '';
+            const p = n => String(n).padStart(2, '0');
+            return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())} ${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`;
         }
 
         async function loadNotifications() {
@@ -960,10 +1404,25 @@
             renderNotifications(notificationsData);
         }
 
+        function notificationRows(data) {
+            return (data || []).map(item => ({
+                id: item.id || '',
+                title: item.title || '',
+                msg: item.msg || '',
+                status: notificationStatusText(item.status),
+                created_at: formatNotificationTime(item.created_at),
+                view_count: item.view_count ?? 0,
+                read_count: item.read_count ?? 0,
+                actions: ''
+            }));
+        }
+
         function renderNotifications(data) {
             const tbody = document.getElementById('notification-table');
+            const rows = notificationRows(data);
             if (!data || data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无系统通知</td></tr>';
+                publishRows('notification', []);
                 return;
             }
             tbody.innerHTML = data.map(item => `
@@ -981,6 +1440,7 @@
                     </td>
                 </tr>
             `).join('');
+            publishRows('notification', rows);
         }
 
         function filterNotifications() {
@@ -1217,16 +1677,28 @@ img,video{max-width:100%;height:auto}
             setTimeout(() => { btn.textContent = old; }, 1200);
         }
 
+        function fileRows(files) {
+            return (files || []).map(item => ({
+                preview: isImageName(item.name) ? '图片' : '',
+                name: item.name || '',
+                size: numOrBlank(item.size),
+                mtime: item.mtime || '',
+                url: filePublicUrl(item.url),
+                actions: ''
+            }));
+        }
+
         async function loadAdminFiles() {
             const tbody = document.getElementById('files-table');
             const res = await fetch(`${API_BASE}/admin/files`);
             const json = await res.json();
-            const files = json.data || [];
-            if (!files.length) {
+            filesData = json.data || [];
+            if (!filesData.length) {
                 tbody.innerHTML = '<tr><td colspan="6" class="empty">还没有上传文件</td></tr>';
+                publishRows('files', []);
                 return;
             }
-            tbody.innerHTML = files.map(item => {
+            tbody.innerHTML = filesData.map(item => {
                 const url = filePublicUrl(item.url);
                 const preview = isImageName(item.name)
                     ? `<img class="file-thumb" src="${escapeHtml(item.url)}" alt="">`
@@ -1243,6 +1715,7 @@ img,video{max-width:100%;height:auto}
                     </td>
                 </tr>`;
             }).join('');
+            publishRows('files', fileRows(filesData));
         }
 
         async function uploadAdminFiles() {
@@ -1296,10 +1769,23 @@ img,video{max-width:100%;height:auto}
             renderAksk();
         }
 
+        function akskRows(data) {
+            return (data || []).map(item => ({
+                id: numOrBlank(item.id),
+                appName: item.appName || '',
+                platform: item.platform || '',
+                accessKey: item.accessKey || '',
+                accessKeySecure: item.accessKeySecure || '',
+                note: item.note || '',
+                actions: ''
+            }));
+        }
+
         function renderAksk() {
             const tbody = document.getElementById('aksk-table');
             if (akskData.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无数据</td></tr>';
+                publishRows('aksk', []);
                 return;
             }
             tbody.innerHTML = akskData.map(item => `
@@ -1316,6 +1802,7 @@ img,video{max-width:100%;height:auto}
                     </td>
                 </tr>
             `).join('');
+            publishRows('aksk', akskRows(akskData));
         }
 
         function showAddAkskModal() {
@@ -1377,10 +1864,23 @@ img,video{max-width:100%;height:auto}
             renderPhoneModels(phonemodelData);
         }
 
+        function phonemodelRows(data) {
+            return (data || []).map(item => ({
+                id: numOrBlank(item.id),
+                engineering_model: item.engineering_model || '',
+                marketing_model: item.marketing_model || '',
+                manufacturer: item.manufacturer || '',
+                remark: item.remark || '',
+                created_at: item.created_at || '',
+                actions: ''
+            }));
+        }
+
         function renderPhoneModels(data) {
             const tbody = document.getElementById('phonemodel-table');
             if (!data || data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无映射数据 — 在反馈或用量统计中看到新机型后，可在此添加映射关系</td></tr>';
+                publishRows('phonemodel', []);
                 return;
             }
             tbody.innerHTML = data.map(item => `
@@ -1397,6 +1897,7 @@ img,video{max-width:100%;height:auto}
                     </td>
                 </tr>
             `).join('');
+            publishRows('phonemodel', phonemodelRows(data));
         }
 
         function filterPhoneModels() {
@@ -1485,10 +1986,28 @@ img,video{max-width:100%;height:auto}
             return '<span class="badge" style="background:#f5f5f5;color:#999">未知</span>';
         }
 
+        function userRows(data) {
+            return (data || []).map(item => ({
+                id: numOrBlank(item.id),
+                avatar: item.headimgurl || '',
+                nickname: item.nickname || '',
+                region: [item.country, item.province, item.city].filter(Boolean).join(' '),
+                telephone: item.telephone || '',
+                note: item.note || '',
+                create_time: item.create_time || '',
+                last_update_time: item.last_update_time || '',
+                app_version: item.app_version || '',
+                last_login_time: item.last_login_time || '',
+                note2: item.note2 || '',
+                actions: ''
+            }));
+        }
+
         function renderUsers(data) {
             const tbody = document.getElementById('users-table');
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="12" class="empty">暂无数据</td></tr>';
+                publishRows('users', []);
                 return;
             }
             const sortedData = data.slice().sort((a, b) => {
@@ -1532,6 +2051,7 @@ img,video{max-width:100%;height:auto}
                     </td>
                 </tr>
             `}).join('');
+            publishRows('users', userRows(sortedData));
         }
 
         function filterUsers() {
@@ -1616,52 +2136,6 @@ img,video{max-width:100%;height:auto}
             document.getElementById('user-filter-field').value = '';
             document.getElementById('user-column-search').value = '';
             filterUsers();
-        }
-
-        // 导出当前筛选结果到 Excel（CSV + UTF-8 BOM，Excel/WPS 双击直接打开，中文不乱码）
-        function csvCell(value) {
-            const s = value == null ? '' : String(value);
-            return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-        }
-
-        function exportUsersExcel() {
-            const data = filteredUsersData.length ? filteredUsersData : usersData;
-            if (!data.length) {
-                alert('没有可导出的用户数据');
-                return;
-            }
-            const headers = ['ID', '昵称', '性别', '地区', '电话', 'OpenID', 'UnionID', '备注', '备注2', 'APP版本', '最近登录', '注册时间', '更新时间'];
-            const lines = [headers.join(',')];
-            data.forEach(u => {
-                const region = [u.country, u.province, u.city].filter(Boolean).join(' ');
-                lines.push([
-                    u.id,
-                    u.nickname || '微信用户',
-                    sexText(u.sex),
-                    region,
-                    u.telephone || '',
-                    u.openid || '',
-                    u.unionid || '',
-                    u.note || '',
-                    u.note2 || '',
-                    u.app_version || '',
-                    u.last_login_time || '',
-                    u.create_time || '',
-                    u.last_update_time || ''
-                ].map(csvCell).join(','));
-            });
-            const csv = '\uFEFF' + lines.join('\r\n');
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            const now = new Date();
-            const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            a.href = url;
-            a.download = `用户信息_${stamp}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
         }
 
         function detailValue(value, emptyText) {
@@ -1818,10 +2292,24 @@ img,video{max-width:100%;height:auto}
             renderLogs(logsData);
         }
 
+        function logRows(data) {
+            return (data || []).map(item => ({
+                id: numOrBlank(item.id),
+                pkg: item.pkg || '',
+                version: item.version || '',
+                phone: item.phone || '',
+                type: item.type || '',
+                info: item.info || '',
+                time: item.time || '',
+                user: item.user_name || item.user || ''
+            }));
+        }
+
         function renderLogs(data) {
             const tbody = document.getElementById('logs-table');
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无数据</td></tr>';
+                publishRows('logs', []);
                 return;
             }
             tbody.innerHTML = data.map(item => `
@@ -1836,6 +2324,7 @@ img,video{max-width:100%;height:auto}
                     <td>${item.user_name || item.user || '-'}</td>
                 </tr>
             `).join('');
+            publishRows('logs', logRows(data));
         }
 
         const filterLogsDebounced = debounce(function () {
@@ -1915,7 +2404,6 @@ img,video{max-width:100%;height:auto}
             usageData = listJson.data || [];
             renderUsageSummary(summary);
             phoneModelStatsData = phoneModelJson.data || [];
-            renderUsageDonuts(summary);
             renderPhoneModelStats();
             renderUsageChart(summary.daily_stats || []);
             dailyDeviceData = summary.daily_stats || [];
@@ -1937,121 +2425,54 @@ img,video{max-width:100%;height:auto}
 
             const sourceStats = s.source_stats || [];
             const todaySourceStats = s.today_source_stats || [];
-            if (sourceStats.length === 0) {
-                document.getElementById('usage-source-section').innerHTML = '';
-                return;
-            }
             const todayMap = {};
             todaySourceStats.forEach(r => { todayMap[r.source] = r; });
-
+            const sourceRows = sourceStats.map(r => {
+                const t = todayMap[r.source] || {};
+                return {
+                    source: r.source || '未知',
+                    today_devices: t.devices || 0,
+                    today_opens: t.opens || 0,
+                    today_duration: formatDuration(t.duration_ms || 0),
+                    today_play: formatDuration(t.play_duration_ms || 0),
+                    total_devices: r.devices || 0,
+                    total_opens: r.opens || 0,
+                    total_duration: formatDuration(r.duration_ms || 0),
+                    total_play: formatDuration(r.play_duration_ms || 0)
+                };
+            });
+            const sourceBody = sourceRows.length ? sourceRows.map(row => `<tr>
+                                <td class="source-name"><span class="badge badge-info">${escapeHtml(row.source)}</span></td>
+                                <td class="source-metric">${row.today_devices}</td>
+                                <td class="source-metric">${row.today_opens}</td>
+                                <td class="source-metric">${row.today_duration}</td>
+                                <td class="source-metric">${row.today_play}</td>
+                                <td class="source-metric">${row.total_devices}</td>
+                                <td class="source-metric">${row.total_opens}</td>
+                                <td class="source-metric">${row.total_duration}</td>
+                                <td class="source-metric">${row.total_play}</td>
+                            </tr>`).join('') : '<tr><td class="empty" colspan="9">暂无来源数据</td></tr>';
             document.getElementById('usage-source-section').innerHTML = `
-                <div class="section-title" style="margin-top:16px">来源分布</div>
-                <div class="source-stats-wrap"><table class="source-stats-table">
+                <div class="table-stage" data-table-id="usage-source">
+                <div class="source-stats-wrap table-stage-scroll"><table class="source-stats-table">
                     <thead>
-                        <tr><th rowspan="2">来源</th><th class="source-group-today" colspan="4">今日</th><th class="source-group-total source-divider" colspan="4">累计</th></tr>
-                        <tr><th>设备数</th><th>打开次数</th><th>前台使用</th><th>播放时长</th><th class="source-divider">设备数</th><th>打开次数</th><th>前台使用</th><th>播放时长</th></tr>
+                        <tr>
+                            <th>来源</th>
+                            <th class="source-group-today">今日设备数</th>
+                            <th class="source-group-today">今日打开次数</th>
+                            <th class="source-group-today">今日前台使用</th>
+                            <th class="source-group-today">今日播放时长</th>
+                            <th class="source-group-total">累计设备数</th>
+                            <th class="source-group-total">累计打开次数</th>
+                            <th class="source-group-total">累计前台使用</th>
+                            <th class="source-group-total">累计播放时长</th>
+                        </tr>
                     </thead>
-                    <tbody>
-                        ${sourceStats.map(r => {
-                            const t = todayMap[r.source] || {};
-                            return `<tr>
-                                <td class="source-name"><span class="badge badge-info">${escapeHtml(r.source || '未知')}</span></td>
-                                <td class="source-metric">${t.devices || 0}</td>
-                                <td class="source-metric">${t.opens || 0}</td>
-                                <td class="source-metric">${formatDuration(t.duration_ms || 0)}</td>
-                                <td class="source-metric">${formatDuration(t.play_duration_ms || 0)}</td>
-                                <td class="source-metric source-divider">${r.devices || 0}</td>
-                                <td class="source-metric">${r.opens || 0}</td>
-                                <td class="source-metric">${formatDuration(r.duration_ms || 0)}</td>
-                                <td class="source-metric">${formatDuration(r.play_duration_ms || 0)}</td>
-                            </tr>`;
-                        }).join('')}
-                    </tbody>
+                    <tbody>${sourceBody}</tbody>
                 </table></div>
+                </div>
             `;
-        }
-
-        // ===== 首页数据看板（环形图） =====
-        const DONUT_COLORS = ['#1976d2', '#12b76a', '#7a5af8', '#f79009', '#f04438', '#06b6d4', '#ec4899', '#84cc16', '#6366f1', '#f97316'];
-
-        function compactNumber(n) {
-            n = Number(n || 0);
-            if (n >= 100000000) return (n / 100000000).toFixed(1).replace(/\.0$/, '') + '亿';
-            if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '万';
-            return n.toLocaleString();
-        }
-
-        function renderDonutChart(container, title, metric, items, fmt, dimension) {
-            const valid = (items || []).filter(i => (i.value || 0) > 0);
-            if (valid.length === 0) {
-                container.innerHTML = `<div class="donut-card"><div class="donut-title">${title}</div><div class="donut-empty">暂无数据</div></div>`;
-                return;
-            }
-            const sorted = valid.slice().sort((a, b) => b.value - a.value);
-            const total = valid.reduce((s, i) => s + i.value, 0);
-            const top = sorted.slice(0, 8);
-            const restVal = sorted.slice(8).reduce((s, i) => s + i.value, 0);
-            const segs = top.map((s, i) => ({ label: s.label, value: s.value, color: DONUT_COLORS[i % DONUT_COLORS.length], pct: (s.value / total) * 100, other: false }));
-            if (restVal > 0) segs.push({ label: '其他', value: restVal, color: '#cbd5e1', pct: (restVal / total) * 100, other: true });
-
-            // 点某一块 / 图例弹出该分组的用量详情；「其他」是聚合块，不可点。
-            const clickable = s => !!(dimension && !s.other);
-
-            const GAP = segs.length > 1 ? 1.1 : 0;
-            let offset = 0;
-            const circles = segs.map(s => {
-                const segLen = Math.max(s.pct - GAP, 0.4);
-                const dash = segLen.toFixed(2) + ' ' + (100 - segLen).toFixed(2);
-                const dashOffset = (-offset).toFixed(2);
-                offset += s.pct;
-                const onClick = clickable(s) ? ` onclick="showSegmentDetail('${dimension}', '${jsArg(s.label)}')"` : '';
-                return `<circle cx="60" cy="60" r="44" fill="none" stroke="${s.color}" stroke-width="16" pathLength="100" stroke-dasharray="${dash}" stroke-dashoffset="${dashOffset}" class="donut-seg${clickable(s) ? ' donut-clickable' : ''}"${onClick}><title>${escapeHtml(s.label)} · ${fmt(s.value)} · ${s.pct.toFixed(1)}%</title></circle>`;
-            }).join('');
-
-            const legend = segs.map(s => `
-                <div class="donut-legend-row${clickable(s) ? ' donut-clickable' : ''}"${clickable(s) ? ` onclick="showSegmentDetail('${dimension}', '${jsArg(s.label)}')"` : ''} title="${clickable(s) ? '点击查看详情' : ''}">
-                    <span class="donut-legend-dot" style="background:${s.color}"></span>
-                    <span class="donut-legend-label" title="${escapeHtml(s.label)}">${escapeHtml(s.label)}</span>
-                    <span class="donut-legend-value">${fmt(s.value)}</span>
-                    <span class="donut-legend-pct">${s.pct.toFixed(1)}%</span>
-                </div>`).join('');
-
-            container.innerHTML = `
-                <div class="donut-card">
-                    <div class="donut-title">${title}</div>
-                    <div class="donut-subtitle">按${metric}${dimension ? ' · 点击查看详情' : ''}</div>
-                    <div class="donut-body">
-                        <svg viewBox="0 0 120 120" class="donut-svg" role="img" aria-label="${title}">
-                            <g transform="rotate(-90 60 60)">${circles}</g>
-                            <text x="60" y="56" class="donut-center-value" text-anchor="middle">${compactNumber(total)}</text>
-                            <text x="60" y="73" class="donut-center-label" text-anchor="middle">${metric}</text>
-                        </svg>
-                    </div>
-                    <div class="donut-legend">${legend}</div>
-                </div>`;
-        }
-
-        function renderUsageDonuts(summary) {
-            const grid = document.getElementById('usage-donuts');
-            const fmt = n => Number(n || 0).toLocaleString();
-            const sourceItems = (summary.source_stats || []).map(r => ({ label: r.source || '未知', value: r.opens || 0 }));
-            const modelItems = phoneModelStatsData.map(r => ({ label: r.marketing_model || r.phone_model || '未知', value: r.opens || 0 }));
-            const versionItems = (summary.version_stats || []).map(r => ({ label: r.version || '未知', value: r.devices || 0 }));
-            const networkItems = (summary.network_stats || []).map(r => ({ label: r.network_type || '未知', value: r.devices || 0 }));
-
-            grid.innerHTML = `
-                <div class="section-title">数据看板</div>
-                <div class="donut-grid-inner">
-                    <div id="donut-source"></div>
-                    <div id="donut-model"></div>
-                    <div id="donut-version"></div>
-                    <div id="donut-network"></div>
-                </div>`;
-
-            renderDonutChart(document.getElementById('donut-source'), '来源分布', '打开次数', sourceItems, fmt, 'source');
-            renderDonutChart(document.getElementById('donut-model'), '机型分布', '打开次数', modelItems, fmt, 'model');
-            renderDonutChart(document.getElementById('donut-version'), '版本分布', '设备数', versionItems, fmt, 'version');
-            renderDonutChart(document.getElementById('donut-network'), '网络类型', '设备数', networkItems, fmt, 'network');
+            publishRows('usage-source', sourceRows);
         }
 
         const phoneModelNumericKeys = ['devices', 'opens', 'per_device_opens', 'duration_ms', 'per_device_duration', 'play_duration_ms', 'per_device_play', 'play_share', 'opens_pct'];
@@ -2078,13 +2499,32 @@ img,video{max-width:100%;height:auto}
             renderPhoneModelStats();
         }
 
+        function phoneModelExportRows(sorted, totalOpensDenominator) {
+            return sorted.map((r, i) => {
+                const devices = r.devices || 0;
+                const perDeviceOpens = devices ? (r.opens || 0) / devices : 0;
+                const playShare = r.duration_ms ? (r.play_duration_ms || 0) / r.duration_ms * 100 : 0;
+                const pct = (r.opens || 0) / totalOpensDenominator * 100;
+                return {
+                    rank: i + 1,
+                    marketing_model: r.marketing_model || '',
+                    phone_model: [r.phone_model || '', r.engineering_model || ''].filter(Boolean).join('\n'),
+                    devices,
+                    opens: r.opens || 0,
+                    per_device_opens: Math.round(perDeviceOpens * 10) / 10,
+                    duration: formatDuration(r.duration_ms || 0),
+                    per_device_duration: devices ? formatDuration((r.duration_ms || 0) / devices) : '0秒',
+                    play: formatDuration(r.play_duration_ms || 0),
+                    per_device_play: devices ? formatDuration((r.play_duration_ms || 0) / devices) : '0秒',
+                    play_share: Math.round(playShare * 10) / 10,
+                    opens_pct: Math.round(pct * 10) / 10
+                };
+            });
+        }
+
         function renderPhoneModelStats() {
             const section = document.getElementById('usage-phone-model-section');
-            const data = phoneModelStatsData;
-            if (!data || data.length === 0) {
-                section.innerHTML = '';
-                return;
-            }
+            const data = phoneModelStatsData || [];
             const sorted = data.slice().sort((a, b) => {
                 const av = getPhoneModelSortValue(a, phoneModelSort.key);
                 const bv = getPhoneModelSortValue(b, phoneModelSort.key);
@@ -2093,39 +2533,13 @@ img,video{max-width:100%;height:auto}
                     : String(av).localeCompare(String(bv), 'zh-CN', { numeric: true, sensitivity: 'base' });
                 return order * (phoneModelSort.direction === 'asc' ? 1 : -1);
             });
-            document.querySelectorAll('.phone-model-sort-indicator').forEach(el => el.textContent = '');
-            const indicator = document.getElementById(`phone-model-sort-${phoneModelSort.key}`);
-            if (indicator) indicator.textContent = phoneModelSort.direction === 'asc' ? '↑' : '↓';
             const totalOpens = data.reduce((sum, d) => sum + (d.opens || 0), 0);
             const totalOpensDenominator = totalOpens || 1;
             const maxOpens = Math.max(...data.map(d => d.opens || 0), 1);
             const totalPlay = data.reduce((sum, d) => sum + (d.play_duration_ms || 0), 0);
             const mappedCount = data.filter(d => d.marketing_model).length;
-            section.innerHTML = `
-                <div class="section-title" style="margin-top:16px">营销手机型号分布</div>
-                <div class="phone-model-summary">
-                    <div class="phone-model-kpi"><strong>${data.length}</strong><span>机型组合</span></div>
-                    <div class="phone-model-kpi"><strong>${mappedCount} / ${data.length}</strong><span>已映射组合</span></div>
-                    <div class="phone-model-kpi"><strong>${totalOpens.toLocaleString()}</strong><span>累计打开次数</span></div>
-                    <div class="phone-model-kpi"><strong>${formatDuration(totalPlay)}</strong><span>累计播放时长</span></div>
-                </div>
-                <div class="phone-model-table-wrap"><table class="phone-model-table">
-                    <thead><tr>
-                        <th>#</th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('marketing_model')">营销型号<span class="phone-model-sort-indicator" id="phone-model-sort-marketing_model"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('phone_model')">工程型号<span class="phone-model-sort-indicator" id="phone-model-sort-phone_model"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('devices')">设备数<span class="phone-model-sort-indicator" id="phone-model-sort-devices"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('opens')">打开次数<span class="phone-model-sort-indicator" id="phone-model-sort-opens"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('per_device_opens')">每设备打开<span class="phone-model-sort-indicator" id="phone-model-sort-per_device_opens"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('duration_ms')">前台使用<span class="phone-model-sort-indicator" id="phone-model-sort-duration_ms"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('per_device_duration')">每设备前台<span class="phone-model-sort-indicator" id="phone-model-sort-per_device_duration"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('play_duration_ms')">播放时长<span class="phone-model-sort-indicator" id="phone-model-sort-play_duration_ms"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('per_device_play')">每设备播放<span class="phone-model-sort-indicator" id="phone-model-sort-per_device_play"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('play_share')">播放/前台<span class="phone-model-sort-indicator" id="phone-model-sort-play_share"></span></th>
-                        <th class="phone-model-sort" onclick="sortPhoneModelStats('opens_pct')">打开占比<span class="phone-model-sort-indicator" id="phone-model-sort-opens_pct"></span></th>
-                    </tr></thead>
-                    <tbody>
-                        ${sorted.map((r, i) => {
+            const exportRows = phoneModelExportRows(sorted, totalOpensDenominator);
+            const bodyHtml = sorted.length ? sorted.map((r, i) => {
                             const pct = ((r.opens || 0) / totalOpensDenominator * 100).toFixed(1);
                             const devices = r.devices || 0;
                             const perDeviceOpens = devices ? ((r.opens || 0) / devices).toFixed(1) : '0.0';
@@ -2155,32 +2569,56 @@ img,video{max-width:100%;height:auto}
                                 <td class="model-number model-avg">${playShare}%</td>
                                 <td class="model-number">${pct}%</td>
                             </tr>`;
-                        }).join('')}
-                    </tbody>
-                </table></div>
-            `;
-            // 列出未映射的机型，方便快速添加映射
+                        }).join('') : '<tr><td class="empty" colspan="12">暂无机型数据</td></tr>';
             const unmapped = data.filter(r => !r.marketing_model);
-            if (unmapped.length > 0) {
-                section.innerHTML += `
+            const unmappedHtml = unmapped.length ? `
                     <div class="section-title" style="margin-top:20px;color:#d32f2f">待映射机型（${unmapped.length}）</div>
                     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
                         ${unmapped.map(r => `
                             <div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:6px;padding:8px 12px;font-size:13px;max-width:320px">
-                                <div style="font-weight:500;color:#e65100;margin-bottom:4px">${r.phone_model || '-'}</div>
-                                ${r.engineering_model ? `<div style="color:#999;font-size:11px;margin-bottom:4px">工程型号: ${r.engineering_model}</div>` : ''}
+                                <div style="font-weight:500;color:#e65100;margin-bottom:4px">${escapeHtml(r.phone_model || '-')}</div>
+                                ${r.engineering_model ? `<div style="color:#999;font-size:11px;margin-bottom:4px">工程型号: ${escapeHtml(r.engineering_model)}</div>` : ''}
                                 <div style="color:#666;font-size:11px">设备: ${r.devices} | 打开: ${r.opens}次</div>
                                 <div style="margin-top:6px">
-                                    <input value="${(r.engineering_model || r.phone_model || '').replace(/"/g, '&quot;')}"
+                                    <input value="${escapeHtml(r.engineering_model || r.phone_model || '')}"
                                            style="width:100%;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;background:#fff"
                                            onclick="this.select()" readonly
                                            title="点击复制工程型号，前往机型映射面板添加">
                                 </div>
                             </div>
                         `).join('')}
-                    </div>
-                `;
-            }
+                    </div>` : '';
+            section.innerHTML = `
+                <div class="table-stage" data-table-id="usage-phone-model">
+                <div class="phone-model-summary">
+                    <div class="phone-model-kpi"><strong>${data.length}</strong><span>机型组合</span></div>
+                    <div class="phone-model-kpi"><strong>${mappedCount} / ${data.length}</strong><span>已映射组合</span></div>
+                    <div class="phone-model-kpi"><strong>${totalOpens.toLocaleString()}</strong><span>累计打开次数</span></div>
+                    <div class="phone-model-kpi"><strong>${formatDuration(totalPlay)}</strong><span>累计播放时长</span></div>
+                </div>
+                <div class="phone-model-table-wrap table-stage-scroll"><table class="phone-model-table">
+                    <thead><tr>
+                        <th>#</th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('marketing_model')">营销型号<span class="phone-model-sort-indicator" id="phone-model-sort-marketing_model"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('phone_model')">工程型号<span class="phone-model-sort-indicator" id="phone-model-sort-phone_model"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('devices')">设备数<span class="phone-model-sort-indicator" id="phone-model-sort-devices"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('opens')">打开次数<span class="phone-model-sort-indicator" id="phone-model-sort-opens"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('per_device_opens')">每设备打开<span class="phone-model-sort-indicator" id="phone-model-sort-per_device_opens"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('duration_ms')">前台使用<span class="phone-model-sort-indicator" id="phone-model-sort-duration_ms"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('per_device_duration')">每设备前台<span class="phone-model-sort-indicator" id="phone-model-sort-per_device_duration"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('play_duration_ms')">播放时长<span class="phone-model-sort-indicator" id="phone-model-sort-play_duration_ms"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('per_device_play')">每设备播放<span class="phone-model-sort-indicator" id="phone-model-sort-per_device_play"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('play_share')">播放/前台<span class="phone-model-sort-indicator" id="phone-model-sort-play_share"></span></th>
+                        <th class="phone-model-sort" onclick="sortPhoneModelStats('opens_pct')">打开占比<span class="phone-model-sort-indicator" id="phone-model-sort-opens_pct"></span></th>
+                    </tr></thead>
+                    <tbody>${bodyHtml}</tbody>
+                </table></div>
+                </div>
+                ${unmappedHtml}
+            `;
+            const indicator = document.getElementById(`phone-model-sort-${phoneModelSort.key}`);
+            if (indicator) indicator.textContent = phoneModelSort.direction === 'asc' ? '↑' : '↓';
+            publishRows('usage-phone-model', exportRows);
         }
 
         function renderUsageChart(dailyStats) {
@@ -2230,11 +2668,7 @@ img,video{max-width:100%;height:auto}
 
         function renderDailyDeviceStats() {
             const section = document.getElementById('usage-daily-devices');
-            const data = dailyDeviceData;
-            if (!data || data.length === 0) {
-                section.innerHTML = '';
-                return;
-            }
+            const data = dailyDeviceData || [];
             const rows = data.slice().sort((a, b) => {
                 const av = getDailyDeviceSortValue(a, dailyDeviceSort.key);
                 const bv = getDailyDeviceSortValue(b, dailyDeviceSort.key);
@@ -2243,12 +2677,23 @@ img,video{max-width:100%;height:auto}
                     : String(av).localeCompare(String(bv), 'zh-CN', { numeric: true, sensitivity: 'base' });
                 return order * (dailyDeviceSort.direction === 'asc' ? 1 : -1);
             });
-            document.querySelectorAll('.daily-device-sort-indicator').forEach(el => el.textContent = '');
-            const indicator = document.getElementById(`daily-device-sort-${dailyDeviceSort.key}`);
-            if (indicator) indicator.textContent = dailyDeviceSort.direction === 'asc' ? '↑' : '↓';
+            const exportRows = rows.map(d => ({
+                date: d.date || '',
+                devices: d.devices || 0,
+                opens: d.opens || 0,
+                duration: formatDuration(d.duration || 0),
+                play: formatDuration(d.play_duration || 0)
+            }));
+            const bodyHtml = rows.length ? rows.map(d => `<tr>
+                            <td class="daily-date">${escapeHtml(d.date)}</td>
+                            <td class="daily-device-count daily-device-center">${d.devices > 0 ? `<a class="link-cell" onclick="showDailyDevices('${jsArg(d.date)}')" title="查看当日设备与使用人员">${d.devices}</a>` : '0'}</td>
+                            <td class="daily-device-center">${d.opens || 0}</td>
+                            <td class="daily-device-center">${formatDuration(d.duration || 0)}</td>
+                            <td class="daily-device-center">${formatDuration(d.play_duration || 0)}</td>
+                        </tr>`).join('') : '<tr><td class="empty" colspan="5">暂无每日数据</td></tr>';
             section.innerHTML = `
-                <div class="section-title">每日设备数（最近30天）</div>
-                <div class="daily-device-table-wrap"><table class="daily-device-table">
+                <div class="table-stage" data-table-id="usage-daily">
+                <div class="daily-device-table-wrap table-stage-scroll"><table class="daily-device-table">
                     <thead><tr>
                         <th class="daily-device-sort" onclick="sortDailyDevices('date')">日期<span class="daily-device-sort-indicator" id="daily-device-sort-date"></span></th>
                         <th class="daily-device-sort daily-device-center" onclick="sortDailyDevices('devices')">设备数<span class="daily-device-sort-indicator" id="daily-device-sort-devices"></span></th>
@@ -2256,23 +2701,40 @@ img,video{max-width:100%;height:auto}
                         <th class="daily-device-sort" onclick="sortDailyDevices('duration')">前台使用<span class="daily-device-sort-indicator" id="daily-device-sort-duration"></span></th>
                         <th class="daily-device-sort" onclick="sortDailyDevices('play_duration')">播放时长<span class="daily-device-sort-indicator" id="daily-device-sort-play_duration"></span></th>
                     </tr></thead>
-                    <tbody>
-                        ${rows.map(d => `<tr>
-                            <td class="daily-date">${escapeHtml(d.date)}</td>
-                            <td class="daily-device-count daily-device-center">${d.devices > 0 ? `<a class="link-cell" onclick="showDailyDevices('${jsArg(d.date)}')" title="查看当日设备与使用人员">${d.devices}</a>` : '0'}</td>
-                            <td class="daily-device-center">${d.opens || 0}</td>
-                            <td class="daily-device-center">${formatDuration(d.duration || 0)}</td>
-                            <td class="daily-device-center">${formatDuration(d.play_duration || 0)}</td>
-                        </tr>`).join('')}
-                    </tbody>
+                    <tbody>${bodyHtml}</tbody>
                 </table></div>
+                </div>
             `;
+            const indicator = document.getElementById(`daily-device-sort-${dailyDeviceSort.key}`);
+            if (indicator) indicator.textContent = dailyDeviceSort.direction === 'asc' ? '↑' : '↓';
+            publishRows('usage-daily', exportRows);
+        }
+
+        function usageRows(data) {
+            return (data || []).map(item => ({
+                id: numOrBlank(item.id),
+                device_id: item.device_id || '',
+                user_id: item.user_id || '',
+                nickname: item.user_id ? usageNickname(item.nickname) : '',
+                note2: item.note2 || '',
+                date: item.date || '',
+                open_count: item.open_count || 0,
+                duration: formatDuration(item.duration_ms || 0),
+                play: formatDuration(item.play_duration_ms || 0),
+                source: item.source || '',
+                version: item.version || '',
+                phone_model: modelExportText(item),
+                os_version: item.os_version || '',
+                network_type: item.network_type || '',
+                pkg: item.pkg || ''
+            }));
         }
 
         function renderUsage(data) {
             const tbody = document.getElementById('usage-table');
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="15" class="empty">暂无数据</td></tr>';
+                publishRows('usage', []);
                 return;
             }
             tbody.innerHTML = data.map(item => `
@@ -2302,6 +2764,7 @@ img,video{max-width:100%;height:auto}
                     <td>${item.pkg || ''}</td>
                 </tr>
             `).join('');
+            publishRows('usage', usageRows(data));
         }
 
         function filterUsage() {
@@ -2368,9 +2831,75 @@ img,video{max-width:100%;height:auto}
             return nickname && nickname !== '-' ? nickname : '微信用户';
         }
 
+        const DETAIL_DEVICE_COLUMNS = [
+            { key: 'device_id', label: '设备ID', type: 'text' },
+            { key: 'phone_model', label: '手机型号', type: 'text' },
+            { key: 'os_version', label: '系统版本', type: 'text' },
+            { key: 'source', label: '来源', type: 'text' },
+            { key: 'version', label: '版本', type: 'text' },
+            { key: 'opens', label: '打开次数', type: 'number' },
+            { key: 'duration', label: '前台使用', type: 'text' },
+            { key: 'play', label: '播放时长', type: 'text' },
+            { key: 'days', label: '天数', type: 'number' },
+            { key: 'last_date', label: '最近活跃', type: 'date' }
+        ];
+        const DETAIL_DEVICE_USERCOUNT_COLUMNS = DETAIL_DEVICE_COLUMNS.slice(0, 8).concat([
+            { key: 'users', label: '账号数', type: 'number' },
+            { key: 'days', label: '天数', type: 'number' },
+            { key: 'last_date', label: '最近活跃', type: 'date' }
+        ]);
+        const DETAIL_ACCOUNT_COLUMNS = [
+            { key: 'nickname', label: '用户', type: 'text' },
+            { key: 'user_id', label: 'unionid', type: 'text' },
+            { key: 'opens', label: '打开次数', type: 'number' },
+            { key: 'duration', label: '前台使用', type: 'text' },
+            { key: 'play', label: '播放时长', type: 'text' },
+            { key: 'days', label: '天数', type: 'number' },
+            { key: 'last_date', label: '最近活跃', type: 'date' }
+        ];
+
+        function detailDeviceRows(list, withUsers) {
+            return (list || []).map(r => {
+                const row = {
+                    device_id: r.device_id || '',
+                    phone_model: modelExportText(r),
+                    os_version: r.os_version || '',
+                    source: r.source || '',
+                    version: r.version || '',
+                    opens: r.opens || 0,
+                    duration: formatDuration(r.duration_ms || 0),
+                    play: formatDuration(r.play_duration_ms || 0),
+                    days: r.days || 0,
+                    last_date: r.last_date || ''
+                };
+                if (withUsers) row.users = r.users || 0;
+                return row;
+            });
+        }
+
+        function detailAccountRows(list) {
+            return (list || []).map(r => ({
+                nickname: r.user_id ? usageNickname(r.nickname) : '未登录',
+                user_id: r.user_id || '',
+                opens: r.opens || 0,
+                duration: formatDuration(r.duration_ms || 0),
+                play: formatDuration(r.play_duration_ms || 0),
+                days: r.days || 0,
+                last_date: r.last_date || ''
+            }));
+        }
+
+        function wrapDetailTable(id, title, columns, rows, tableHtml, filterText) {
+            AdminTables.register({ id, title, columns, rows, scope: () => detailScope(filterText) });
+            const html = tableHtml || `<table><thead><tr>${columns.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead><tbody><tr><td class="empty" colspan="${columns.length}">暂无数据</td></tr></tbody></table>`;
+            return `<div class="table-stage" data-table-id="${id}"><div class="table-stage-scroll">${html}</div></div>`;
+        }
+
         function openUsageDetailModal(title, html) {
             document.getElementById('usage-detail-title').textContent = title;
-            document.getElementById('usage-detail-body').innerHTML = html;
+            const body = document.getElementById('usage-detail-body');
+            body.innerHTML = html;
+            AdminTables.finishWithin(body);
             document.getElementById('usage-detail-modal').classList.add('show');
         }
 
@@ -2392,26 +2921,32 @@ img,video{max-width:100%;height:auto}
         }
 
         // 按天明细，用户详情多一列设备数（同一天可能在多台设备上用）
-        function renderUsageDailyTable(daily, showDevices) {
-            if (!daily || daily.length === 0) return '<div class="empty">暂无每日记录</div>';
-            return `
-                <table>
-                    <thead><tr>
-                        <th>日期</th>
-                        ${showDevices ? '<th>设备数</th>' : ''}
-                        <th>打开次数</th><th>前台使用</th><th>播放时长</th>
-                    </tr></thead>
-                    <tbody>
-                        ${daily.map(r => `<tr>
+        function renderUsageDailyTable(daily, showDevices, tableId, title, filterText) {
+            const columns = [{ key: 'date', label: '日期', type: 'date' }]
+                .concat(showDevices ? [{ key: 'devices', label: '设备数', type: 'number' }] : [])
+                .concat([
+                    { key: 'open_count', label: '打开次数', type: 'number' },
+                    { key: 'duration', label: '前台使用', type: 'text' },
+                    { key: 'play', label: '播放时长', type: 'text' }
+                ]);
+            const rows = (daily || []).map(r => {
+                const row = {
+                    date: r.date || '',
+                    open_count: r.open_count || 0,
+                    duration: formatDuration(r.duration_ms || 0),
+                    play: formatDuration(r.play_duration_ms || 0)
+                };
+                if (showDevices) row.devices = r.devices || 0;
+                return row;
+            });
+            const body = rows.length ? rows.map(r => `<tr>
                             <td>${escapeHtml(r.date)}</td>
                             ${showDevices ? `<td>${r.devices || 0}</td>` : ''}
-                            <td>${r.open_count || 0}</td>
-                            <td>${formatDuration(r.duration_ms || 0)}</td>
-                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
-                        </tr>`).join('')}
-                    </tbody>
-                </table>
-            `;
+                            <td>${r.open_count}</td>
+                            <td>${r.duration}</td>
+                            <td>${r.play}</td>
+                        </tr>`).join('') : '';
+            return wrapDetailTable(tableId, title, columns, rows, body ? `<table><thead><tr>${columns.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>` : '', filterText);
         }
 
         function renderUsageRange(s) {
@@ -2467,7 +3002,7 @@ img,video{max-width:100%;height:auto}
             ]);
 
             const devices = detail.devices || [];
-            const devicesHtml = devices.length === 0 ? '<div class="empty">暂无设备记录</div>' : `
+            const devicesHtml = wrapDetailTable('usage-user-devices', '用户用量 · 按设备', DETAIL_DEVICE_COLUMNS, detailDeviceRows(devices, false), devices.length === 0 ? '' : `
                 <table>
                     <thead><tr>
                         <th>设备ID</th><th>手机型号</th><th>系统版本</th><th>来源</th><th>版本</th>
@@ -2487,7 +3022,7 @@ img,video{max-width:100%;height:auto}
                             <td>${escapeHtml(r.last_date) || '-'}</td>
                         </tr>`).join('')}
                     </tbody>
-                </table>`;
+                </table>`, `用户 ${userId}`);
 
             openUsageDetailModal('用户用量详情', `
                 ${profileHtml}
@@ -2495,7 +3030,7 @@ img,video{max-width:100%;height:auto}
                 <div class="section-title">按设备（${devices.length}）</div>
                 ${devicesHtml}
                 <div class="section-title">按天明细（${(detail.daily || []).length}）</div>
-                ${renderUsageDailyTable(detail.daily, true)}
+                ${renderUsageDailyTable(detail.daily, true, 'usage-user-daily', '用户用量 · 按天明细', `用户 ${userId}`)}
             `);
         }
 
@@ -2540,7 +3075,7 @@ img,video{max-width:100%;height:auto}
             ]);
 
             const users = detail.users || [];
-            const usersHtml = users.length === 0 ? '<div class="empty">暂无账号记录</div>' : `
+            const usersHtml = wrapDetailTable('usage-device-users', '设备用量 · 登录过的账号', DETAIL_ACCOUNT_COLUMNS, detailAccountRows(users), users.length === 0 ? '' : `
                 <table>
                     <thead><tr>
                         <th>用户</th><th>unionid</th><th>打开次数</th><th>前台使用</th><th>播放时长</th><th>天数</th><th>最近活跃</th>
@@ -2558,7 +3093,7 @@ img,video{max-width:100%;height:auto}
                             <td>${escapeHtml(r.last_date) || '-'}</td>
                         </tr>`).join('')}
                     </tbody>
-                </table>`;
+                </table>`, `设备 ${deviceId}`);
 
             openUsageDetailModal('设备用量详情', `
                 ${infoHtml}
@@ -2566,7 +3101,7 @@ img,video{max-width:100%;height:auto}
                 <div class="section-title">登录过的账号（${users.filter(u => u.user_id).length}）<span style="font-size:12px;color:#999;font-weight:400">　未登录时段单独列在末行</span></div>
                 ${usersHtml}
                 <div class="section-title">按天明细（${(detail.daily || []).length}）</div>
-                ${renderUsageDailyTable(detail.daily, false)}
+                ${renderUsageDailyTable(detail.daily, false, 'usage-device-daily', '设备用量 · 按天明细', `设备 ${deviceId}`)}
             `);
         }
 
@@ -2610,7 +3145,7 @@ img,video{max-width:100%;height:auto}
             ]);
 
             const devices = detail.devices || [];
-            const devicesHtml = devices.length === 0 ? '<div class="empty">暂无设备记录</div>' : `
+            const devicesHtml = wrapDetailTable('usage-model-devices', '机型 · 相关设备', DETAIL_DEVICE_USERCOUNT_COLUMNS, detailDeviceRows(devices, true), devices.length === 0 ? '' : `
                 <table>
                     <thead><tr>
                         <th>设备ID</th><th>手机型号</th><th>系统版本</th><th>来源</th><th>版本</th>
@@ -2631,10 +3166,10 @@ img,video{max-width:100%;height:auto}
                             <td>${escapeHtml(r.last_date) || '-'}</td>
                         </tr>`).join('')}
                     </tbody>
-                </table>`;
+                </table>`, `机型 ${phoneModel || ''}${engineeringModel ? ' / ' + engineeringModel : ''}`);
 
             const users = detail.users || [];
-            const usersHtml = users.length === 0 ? '<div class="empty">暂无使用人员记录</div>' : `
+            const usersHtml = wrapDetailTable('usage-model-users', '机型 · 使用人员', DETAIL_ACCOUNT_COLUMNS, detailAccountRows(users), users.length === 0 ? '' : `
                 <table>
                     <thead><tr>
                         <th>用户</th><th>unionid</th><th>打开次数</th><th>前台使用</th><th>播放时长</th><th>天数</th><th>最近活跃</th>
@@ -2652,7 +3187,7 @@ img,video{max-width:100%;height:auto}
                             <td>${escapeHtml(r.last_date) || '-'}</td>
                         </tr>`).join('')}
                     </tbody>
-                </table>`;
+                </table>`, `机型 ${phoneModel || ''}${engineeringModel ? ' / ' + engineeringModel : ''}`);
 
             openUsageDetailModal('机型设备与使用人员', `
                 ${infoHtml}
@@ -2701,7 +3236,7 @@ img,video{max-width:100%;height:auto}
             ]);
 
             const devices = detail.devices || [];
-            const devicesHtml = devices.length === 0 ? '<div class="empty">暂无设备记录</div>' : `
+            const devicesHtml = wrapDetailTable('usage-day-devices', '当日 · 相关设备', DETAIL_DEVICE_USERCOUNT_COLUMNS, detailDeviceRows(devices, true), devices.length === 0 ? '' : `
                 <table>
                     <thead><tr>
                         <th>设备ID</th><th>手机型号</th><th>系统版本</th><th>来源</th><th>版本</th>
@@ -2722,10 +3257,10 @@ img,video{max-width:100%;height:auto}
                             <td>${escapeHtml(r.last_date) || '-'}</td>
                         </tr>`).join('')}
                     </tbody>
-                </table>`;
+                </table>`, `日期 ${date}`);
 
             const users = detail.users || [];
-            const usersHtml = users.length === 0 ? '<div class="empty">暂无使用人员记录</div>' : `
+            const usersHtml = wrapDetailTable('usage-day-users', '当日 · 使用人员', DETAIL_ACCOUNT_COLUMNS, detailAccountRows(users), users.length === 0 ? '' : `
                 <table>
                     <thead><tr>
                         <th>用户</th><th>unionid</th><th>打开次数</th><th>前台使用</th><th>播放时长</th><th>天数</th><th>最近活跃</th>
@@ -2743,7 +3278,7 @@ img,video{max-width:100%;height:auto}
                             <td>${escapeHtml(r.last_date) || '-'}</td>
                         </tr>`).join('')}
                     </tbody>
-                </table>`;
+                </table>`, `日期 ${date}`);
 
             openUsageDetailModal('当日设备与使用人员', `
                 ${infoHtml}
@@ -2755,71 +3290,7 @@ img,video{max-width:100%;height:auto}
             `);
         }
 
-        // ===== 看板环形图：点击查看详情 =====
-        const segmentDimensionTitles = { source: '来源', model: '机型', version: '版本', network: '网络类型' };
-
-        async function showSegmentDetail(dimension, value) {
-            if (!dimension || value == null || value === '') return;
-            const title = `${segmentDimensionTitles[dimension] || '分组'}详情：${value}`;
-            const seq = ++usageDetailSeq;
-            openUsageDetailModal(title, '<div class="empty">加载中…</div>');
-            let json;
-            try {
-                const res = await fetch(`${API_BASE}/usage/segment-detail?dimension=${encodeURIComponent(dimension)}&value=${encodeURIComponent(value)}`);
-                json = await res.json();
-            } catch (e) {
-                if (seq === usageDetailSeq) openUsageDetailModal(title, '<div class="empty">加载失败，请重试</div>');
-                return;
-            }
-            if (seq !== usageDetailSeq) return;
-            const detail = json.data;
-            if (!detail) {
-                openUsageDetailModal(title, '<div class="empty">没有查到相关记录</div>');
-                return;
-            }
-            const s = detail.summary || {};
-            const statsHtml = renderMiniStats([
-                [s.opens || 0, '打开次数'],
-                [formatDuration(s.duration_ms || 0), '前台使用'],
-                [formatDuration(s.play_duration_ms || 0), '播放时长'],
-                [s.devices || 0, '设备数'],
-                [s.users || 0, '使用人数'],
-                [s.days || 0, '活跃天数'],
-                [renderUsageRange(s), '活跃区间', true]
-            ]);
-            const records = detail.records || [];
-            const recordsHtml = records.length === 0 ? '<div class="empty">暂无记录</div>' : `
-                <table>
-                    <thead><tr>
-                        <th>日期</th><th>设备ID</th><th>用户</th><th>备注2</th>
-                        <th>打开次数</th><th>前台使用</th><th>播放时长</th>
-                        <th>来源</th><th>版本</th><th>机型</th><th>系统</th><th>网络</th>
-                    </tr></thead>
-                    <tbody>
-                        ${records.map(r => `<tr>
-                            <td>${escapeHtml(r.date)}</td>
-                            <td>${r.device_id ? `<span class="text-truncate link-cell" title="${escapeHtml(r.device_id)}" onclick="showUsageDeviceDetail('${jsArg(r.device_id)}')">${escapeHtml(r.device_id)}</span>` : '-'}</td>
-                            <td>${r.user_id
-                                ? `<span class="link-cell" onclick="showUserDetailByUnionid('${jsArg(r.user_id)}')">${escapeHtml(usageNickname(r.nickname))}</span>`
-                                : '<span style="color:#999">未登录</span>'}</td>
-                            <td>${r.note2 ? `<span class="text-truncate" title="${escapeHtml(r.note2)}">${escapeHtml(r.note2)}</span>` : '-'}</td>
-                            <td>${r.open_count || 0}</td>
-                            <td>${formatDuration(r.duration_ms || 0)}</td>
-                            <td>${formatDuration(r.play_duration_ms || 0)}</td>
-                            <td>${escapeHtml(r.source) || '-'}</td>
-                            <td>${r.version ? `<span class="badge badge-info">${escapeHtml(r.version)}</span>` : '-'}</td>
-                            <td>${renderModelCell(r)}</td>
-                            <td>${escapeHtml(r.os_version) || '-'}</td>
-                            <td>${escapeHtml(r.network_type) || '-'}</td>
-                        </tr>`).join('')}
-                    </tbody>
-                </table>`;
-            openUsageDetailModal(title, `
-                ${statsHtml}
-                <div class="section-title">相关记录（${records.length}${records.length >= 5000 ? '，仅显示前5000条' : ''}）</div>
-                ${recordsHtml}
-            `);
-        }
+        initAdminTables();
 
     </script>
     </div><!-- /#main-content -->
