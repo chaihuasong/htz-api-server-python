@@ -913,6 +913,7 @@
         function feedbackAttachmentText(item) {
             const parts = parseImages(item).slice();
             if (item.video_url) parts.push(item.video_url);
+            parseLogUrls(item).forEach(url => parts.push(url));
             return parts.join('\n');
         }
 
@@ -1249,6 +1250,25 @@
             try { const arr = JSON.parse(item.image_urls); return Array.isArray(arr) ? arr : []; } catch (e) { return []; }
         }
 
+        function parseLogUrls(item) {
+            const raw = item && item.log_urls;
+            if (!raw) return [];
+            if (Array.isArray(raw)) return raw.filter(url => typeof url === 'string' && url);
+            try {
+                const arr = JSON.parse(raw);
+                return Array.isArray(arr) ? arr.filter(url => typeof url === 'string' && url) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function feedbackLogLinksHtml(item) {
+            return parseLogUrls(item).map((url, index) => {
+                const name = String(url).split('/').pop();
+                return `<a href="${escapeHtml(url)}" download="${escapeHtml(name)}" target="_blank" rel="noopener">${escapeHtml(name || ('日志' + (index + 1)))}</a>`;
+            }).join('<br>');
+        }
+
         function feedbackThumbsHtml(item) {
             const imgs = parseImages(item);
             const parts = [];
@@ -1259,6 +1279,8 @@
             if (item.video_url) {
                 parts.push(`<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#000;color:#fff;border-radius:4px;margin-left:4px;cursor:pointer;font-size:18px" onclick="window.open('${item.video_url}','_blank')" title="视频">▶</span>`);
             }
+            const logs = feedbackLogLinksHtml(item);
+            if (logs) parts.push(`<div style="margin-left:6px;font-size:12px;line-height:1.4">${logs}</div>`);
             return parts.length ? `<div style="display:flex;align-items:center">${parts.join('')}</div>` : '-';
         }
 
@@ -1329,6 +1351,7 @@
             const fields = ['id','user_id','user_nickname','nickname','contact','category','content','reply','status',
                 'pkg','version','phone_model','engineering_model','marketing_model','os_version','device_id','created_at','updated_at'];
             const imgs = parseImages(item);
+            const logLinks = feedbackLogLinksHtml(item);
             const mediaHtml = (imgs.length || item.video_url) ? `
                 <div style="margin-bottom:12px">
                     <div style="font-weight:500;margin-bottom:6px">附件</div>
@@ -1338,7 +1361,13 @@
                     </div>
                 </div>
             ` : '';
-            document.getElementById('feedback-detail').innerHTML = mediaHtml + `
+            const logHtml = logLinks ? `
+                <div style="margin-bottom:12px">
+                    <div style="font-weight:500;margin-bottom:6px">日志附件</div>
+                    <div style="font-size:13px;line-height:1.7">${logLinks}</div>
+                </div>
+            ` : '';
+            document.getElementById('feedback-detail').innerHTML = mediaHtml + logHtml + `
                 <table style="width:100%">
                     ${fields.map(k => `<tr><td style="padding:6px;font-weight:500;width:120px">${k}</td><td style="padding:6px;word-break:break-all;white-space:pre-wrap">${item[k] === undefined || item[k] === null ? '-' : item[k]}</td></tr>`).join('')}
                 </table>

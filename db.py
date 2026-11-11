@@ -488,12 +488,18 @@ def init_feedback_table():
                 reply TEXT DEFAULT '',
                 image_urls TEXT DEFAULT '',
                 video_url TEXT DEFAULT '',
+                log_urls TEXT DEFAULT '',
                 created_at TEXT,
                 updated_at TEXT
             )
         """)
         # 兼容旧表，补充新列
-        for col, definition in [("image_urls", "TEXT DEFAULT ''"), ("video_url", "TEXT DEFAULT ''"), ("engineering_model", "TEXT DEFAULT ''")]:
+        for col, definition in [
+            ("image_urls", "TEXT DEFAULT ''"),
+            ("video_url", "TEXT DEFAULT ''"),
+            ("engineering_model", "TEXT DEFAULT ''"),
+            ("log_urls", "TEXT DEFAULT ''"),
+        ]:
             try:
                 cursor.execute(f"ALTER TABLE feedback ADD COLUMN {col} {definition}")
             except Exception:
@@ -506,11 +512,11 @@ def save_feedback(item: FeedbackItem):
         cursor.execute("""
             INSERT INTO feedback (user_id, nickname, contact, content, category,
                 pkg, version, phone_model, engineering_model, os_version, device_id, status, reply,
-                image_urls, video_url, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                image_urls, video_url, log_urls, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (item.user_id, item.nickname, item.contact, item.content, item.category,
               item.pkg, item.version, item.phone_model, item.engineering_model, item.os_version, item.device_id,
-              item.status or "pending", item.reply, item.image_urls, item.video_url, now, now))
+              item.status or "pending", item.reply, item.image_urls, item.video_url, item.log_urls or "", now, now))
 
 
 def get_all_feedback():

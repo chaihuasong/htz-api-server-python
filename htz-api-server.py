@@ -20,7 +20,7 @@ import threading
 from datetime import datetime
 from email.utils import formatdate
 
-from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, UserNote2UpdateItem, PhoneModelMappingItem, UserSyncItem, CompletedItemsReport
+from request import RequestItem, AkskRequestItem, AppUsageItem, FeedbackItem, UserTelephoneUpdateItem, UserNote2UpdateItem, PhoneModelMappingItem, UserSyncItem, CompletedItemsReport, FeedbackLogUrlError, feedback_log_basename, normalize_feedback_log_urls
 from db import *
 from typing import List
 
@@ -213,18 +213,22 @@ app.add_middleware(AdminAuthMiddleware)
 
 # ===== 静态文件 =====
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-FEEDBACK_UPLOAD_DIR = os.path.join(STATIC_DIR, "feedback")
+# 测试可把日志和反馈附件写到临时目录。不设置时仍是 static/feedback，由 /static 原样提供下载。
+FEEDBACK_UPLOAD_DIR = os.environ.get("HTZ_FEEDBACK_UPLOAD_DIR") or os.path.join(STATIC_DIR, "feedback")
 ADMIN_UPLOAD_DIR = os.path.join(STATIC_DIR, "uploads")
 os.makedirs(FEEDBACK_UPLOAD_DIR, exist_ok=True)
 os.makedirs(ADMIN_UPLOAD_DIR, exist_ok=True)
 # 将 static/ 目录暴露为 /static/ 静态资源
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# 单个文件大小上限（字节）：图片 10MB，视频 50MB
+# 单个文件大小上限（字节）：图片 10MB，视频 50MB。
+# 应用日志单文件 6 MiB。Android 仓库在此环境不可读，与客户端「单文件约 6MB」对齐为 6 * 1024 * 1024。
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
 MAX_VIDEO_SIZE = 50 * 1024 * 1024
+MAX_LOG_SIZE = 6 * 1024 * 1024
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 ALLOWED_VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".3gp", ".webm", ".mkv"}
+ALLOWED_LOG_EXTS = {".log"}
 # 后台「文件」页上传，给功能帮助、关于书院贴图片地址用
 ALLOWED_ADMIN_UPLOAD_EXTS = ALLOWED_IMAGE_EXTS | ALLOWED_VIDEO_EXTS | {".pdf"}
 MAX_ADMIN_UPLOAD_SIZE = 20 * 1024 * 1024
@@ -621,14 +625,35 @@ def study_completed(user_id: str):
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": result})
 
 # ===== 意见反馈 API =====
+def bind_feedback_log_urls(value):
+    """校验并收成可入库的 log_urls。地址必须已经在反馈附件目录里，且不能逃出该目录。"""
+    try:
+        normalized = normalize_feedback_log_urls(value)
+    except FeedbackLogUrlError:
+        raise
+    if not normalized:
+        return ""
+    root = os.path.realpath(FEEDBACK_UPLOAD_DIR)
+    for url in json.loads(normalized):
+        name = feedback_log_basename(url)
+        path = os.path.realpath(os.path.join(root, name))
+        if os.path.dirname(path) != root or not os.path.isfile(path):
+            raise FeedbackLogUrlError("log file not found")
+    return normalized
+
+
 @app.post("/htz-api-pyservice/api/v1/feedback/add")
 def feedback_add(item: FeedbackItem):
     print(f"feedback_add: {item}")
     try:
+        item.log_urls = bind_feedback_log_urls(item.log_urls)
+    except FeedbackLogUrlError as e:
+        return JSONResponse({"code": "400", "msg": str(e), "data": None}, status_code=400)
+    try:
         save_feedback(item)
     except Exception as e:
         print(f"feedback_add error: {e}")
-        return JSONResponse({"code": "500", "msg": str(e), "data": None})
+        return JSONResponse({"code": "500", "msg": str(e), "data": None}, status_code=500)
     return JSONResponse({"code": "0", "msg": "SUCCESS", "data": "null"})
 
 @app.get("/htz-api-pyservice/api/v1/feedback/list")
@@ -692,17 +717,28 @@ def put_user_notifications(notification_ids: List[str] = Body(default=[]), token
 
 @app.post("/htz-api-pyservice/api/v1/feedback/upload")
 async def feedback_upload(file: UploadFile = File(...), type: str = Form("image")):
-    """上传反馈附件（图片/视频），返回可访问 URL"""
+    """上传反馈附件。type=image / video 沿用原规则；type=log 只接受 .log，单文件不超过 MAX_LOG_SIZE。
+
+    保存名由服务端生成，不使用客户端路径。失败时删除已写入的半截文件，并返回非成功 code。
+    """
+    dst_path = None
     try:
-        ext = os.path.splitext(file.filename or "")[1].lower()
-        if type == "video":
+        kind = (type or "image").strip().lower()
+        ext = os.path.splitext(os.path.basename(file.filename or ""))[1].lower()
+        if kind == "video":
             allowed = ALLOWED_VIDEO_EXTS
             max_size = MAX_VIDEO_SIZE
+        elif kind == "log":
+            allowed = ALLOWED_LOG_EXTS
+            max_size = MAX_LOG_SIZE
         else:
             allowed = ALLOWED_IMAGE_EXTS
             max_size = MAX_IMAGE_SIZE
         if ext not in allowed:
-            return JSONResponse({"code": "400", "msg": f"unsupported file ext: {ext}", "data": None})
+            # 图片/视频的失败响应保持原有 HTTP 200 + code，避免改变旧客户端对这两类的处理。
+            # 日志是新契约，失败必须用对应的 HTTP 状态，不能回 200。
+            status = 400 if kind == "log" else 200
+            return JSONResponse({"code": "400", "msg": f"unsupported file ext: {ext}", "data": None}, status_code=status)
 
         new_name = f"{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
         dst_path = os.path.join(FEEDBACK_UPLOAD_DIR, new_name)
@@ -716,14 +752,22 @@ async def feedback_upload(file: UploadFile = File(...), type: str = Form("image"
                 if size > max_size:
                     out.close()
                     os.remove(dst_path)
-                    return JSONResponse({"code": "413", "msg": "file too large", "data": None})
+                    dst_path = None
+                    status = 413 if kind == "log" else 200
+                    return JSONResponse({"code": "413", "msg": "file too large", "data": None}, status_code=status)
                 out.write(chunk)
         url = f"/static/feedback/{new_name}"
         print(f"feedback_upload saved {dst_path} ({size} bytes) -> {url}")
         return JSONResponse({"code": "0", "msg": "SUCCESS", "data": {"url": url, "size": size}})
     except Exception as e:
+        if dst_path and os.path.isfile(dst_path):
+            try:
+                os.remove(dst_path)
+            except OSError:
+                pass
         print(f"feedback_upload error: {e}")
-        return JSONResponse({"code": "500", "msg": str(e), "data": None})
+        status = 500 if (type or "").strip().lower() == "log" else 200
+        return JSONResponse({"code": "500", "msg": str(e), "data": None}, status_code=status)
 
 # ===== 微信扫码登录 =====
 
