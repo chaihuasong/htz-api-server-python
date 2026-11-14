@@ -522,12 +522,12 @@
                             <th class="users-sort" onclick="sortUsers('nickname')">昵称<span class="users-sort-indicator" id="users-sort-nickname"></span></th>
                             <th class="users-sort col-region" onclick="sortUsers('region')">地区<span class="users-sort-indicator" id="users-sort-region"></span></th>
                             <th class="users-sort" onclick="sortUsers('telephone')">电话<span class="users-sort-indicator" id="users-sort-telephone"></span></th>
-                            <th class="users-sort" onclick="sortUsers('note')">备注<span class="users-sort-indicator" id="users-sort-note"></span></th>
-                            <th class="users-sort" onclick="sortUsers('create_time')">创建时间<span class="users-sort-indicator" id="users-sort-create_time"></span></th>
-                            <th class="users-sort" onclick="sortUsers('last_update_time')">更新时间<span class="users-sort-indicator" id="users-sort-last_update_time"></span></th>
                             <th class="users-sort" onclick="sortUsers('app_version')">当前版本<span class="users-sort-indicator" id="users-sort-app_version"></span></th>
                             <th class="users-sort" onclick="sortUsers('last_login_time')">最近登录<span class="users-sort-indicator" id="users-sort-last_login_time"></span></th>
                             <th class="users-sort" onclick="sortUsers('note2')">备注2<span class="users-sort-indicator" id="users-sort-note2"></span></th>
+                            <th class="users-sort" onclick="sortUsers('note')">备注<span class="users-sort-indicator" id="users-sort-note"></span></th>
+                            <th class="users-sort" onclick="sortUsers('create_time')">创建时间<span class="users-sort-indicator" id="users-sort-create_time"></span></th>
+                            <th class="users-sort" onclick="sortUsers('last_update_time')">更新时间<span class="users-sort-indicator" id="users-sort-last_update_time"></span></th>
                             <th class="col-actions">操作</th>
                         </tr>
                     </thead>
@@ -963,12 +963,12 @@
             { key: 'nickname', label: '昵称', type: 'text' },
             { key: 'region', label: '地区', type: 'text' },
             { key: 'telephone', label: '电话', type: 'text' },
-            { key: 'note', label: '备注', type: 'text' },
-            { key: 'create_time', label: '创建时间', type: 'datetime' },
-            { key: 'last_update_time', label: '更新时间', type: 'datetime' },
             { key: 'app_version', label: '当前版本', type: 'text' },
             { key: 'last_login_time', label: '最近登录', type: 'datetime' },
             { key: 'note2', label: '备注2', type: 'text' },
+            { key: 'note', label: '备注', type: 'text' },
+            { key: 'create_time', label: '创建时间', type: 'datetime' },
+            { key: 'last_update_time', label: '更新时间', type: 'datetime' },
             { key: 'actions', label: '操作', type: 'text', export: false }
         ];
         const logsColumns = [
@@ -2062,9 +2062,6 @@ img,video{max-width:100%;height:auto}
                     <td><span class="link-cell user-name" title="点击查看用户资料" onclick="showUserDetail(${item.id})">${escapeHtml(item.nickname || '微信用户')}</span></td>
                     <td class="col-region"><span class="user-region" title="${escapeHtml(region)}">${escapeHtml(region) || '<span class="user-muted">-</span>'}</span></td>
                     <td>${item.telephone || '<span class="user-muted">未绑定</span>'}</td>
-                    <td><span class="text-truncate" title="${(item.note || '').replace(/"/g,'&quot;')}">${item.note || '-'}</span></td>
-                    <td class="user-time">${item.create_time || '-'}</td>
-                    <td class="user-time">${item.last_update_time || '-'}</td>
                     <td>${item.app_version ? `<span class="badge badge-info">${escapeHtml(item.app_version)}</span>` : '<span class="user-muted">未知</span>'}</td>
                     <td class="user-time">${item.last_login_time || '-'}</td>
                     <td>
@@ -2074,6 +2071,9 @@ img,video{max-width:100%;height:auto}
                             onblur="saveUserNote2('${jsArg(item.unionid)}', this)"
                             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
                     </td>
+                    <td><span class="text-truncate" title="${(item.note || '').replace(/"/g,'&quot;')}">${item.note || '-'}</span></td>
+                    <td class="user-time">${item.create_time || '-'}</td>
+                    <td class="user-time">${item.last_update_time || '-'}</td>
                     <td class="user-actions">
                         <button class="btn btn-sm btn-edit" onclick="showEditUserTelephone(${item.id})">编辑电话</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteUser('${jsArg(item.unionid)}')">删除</button>
