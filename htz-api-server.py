@@ -208,8 +208,40 @@ class SelectiveGZipMiddleware:
             await self.app(scope, receive, send)
 
 
+class NoCacheAdminAssetsMiddleware:
+    """给 admin.html / admin-tables.js 强制 no-cache。
+
+    /admin 页面本身没有缓存头、每次都会重读，但页面引用的 /static/admin-tables.js
+    由 StaticFiles 提供，带 ETag/Last-Modified 又没带 Cache-Control，浏览器会按
+    「启发式缓存」扣住旧版——典型表现就是刚部署完，后台还是加载到缺 admin-tables.js
+    或旧版的那份，导致用量统计下半部分（趋势图、详细记录）一直渲染不出来。
+    这里只对这两个会随部署更新的后台文件加 no-cache，其余 /static 资源不动。
+    """
+
+    NO_CACHE_PATHS = {"/static/admin.html", "/static/admin-tables.js"}
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["path"] not in self.NO_CACHE_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_nocache(message):
+            if message["type"] == "http.response.start":
+                headers = [(k, v) for k, v in message.get("headers", [])
+                           if k.lower() != b"cache-control"]
+                headers.append((b"cache-control", b"no-cache"))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_nocache)
+
+
 app.add_middleware(SelectiveGZipMiddleware)
 app.add_middleware(AdminAuthMiddleware)
+app.add_middleware(NoCacheAdminAssetsMiddleware)
 
 # ===== 静态文件 =====
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
